@@ -48,7 +48,7 @@ export function HostPage() {
         navigate(`/session/${data.sessionId}`);
       } else {
         // Need to login - redirect to Tidal auth
-        window.location.href = `/api/auth/login?sessionId=${data.sessionId}`;
+        window.location.href = `${API_URL}/api/auth/login?sessionId=${data.sessionId}`;
       }
     } catch (err) {
       console.error('Failed to create session:', err);
