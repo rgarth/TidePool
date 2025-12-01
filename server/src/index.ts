@@ -576,6 +576,25 @@ app.get('/api/debug/tidal-test', async (req, res) => {
 // REST API Routes
 // ============================================
 
+// Fun random session name generator
+const SESSION_ADJECTIVES = [
+  'Midnight', 'Summer', 'Chill', 'Epic', 'Groovy', 'Smooth', 'Cosmic', 
+  'Electric', 'Golden', 'Sunset', 'Highway', 'Road Trip', 'Late Night',
+  'Weekend', 'Sunday', 'Throwback', 'Fresh', 'Vibe', 'Good Times', 'Cruising'
+];
+
+const SESSION_NOUNS = [
+  'Bangers', 'Jams', 'Beats', 'Vibes', 'Tunes', 'Tracks', 'Hits', 
+  'Grooves', 'Sounds', 'Mix', 'Playlist', 'Session', 'Party', 'Drive',
+  'Journey', 'Waves', 'Flow', 'Mood', 'Energy', 'Magic'
+];
+
+function generateRandomSessionName(): string {
+  const adj = SESSION_ADJECTIVES[Math.floor(Math.random() * SESSION_ADJECTIVES.length)];
+  const noun = SESSION_NOUNS[Math.floor(Math.random() * SESSION_NOUNS.length)];
+  return `${adj} ${noun}`;
+}
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', sessions: sessions.size });
 });
@@ -584,10 +603,13 @@ app.post('/api/sessions', (req, res) => {
   const { hostName } = req.body;
   const sessionId = generateSessionCode();
   
+  // Use provided name or generate a fun random one
+  const sessionName = hostName?.trim() || generateRandomSessionName();
+  
   const session: Session = {
     id: sessionId,
     hostId: '', // Will be set when host connects via WebSocket
-    name: hostName || 'Road Trip', // Use the name directly
+    name: sessionName,
     queue: [],
     currentTrackIndex: 0,
     isPlaying: false,
