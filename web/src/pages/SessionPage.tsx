@@ -69,6 +69,9 @@ export function SessionPage() {
     checkAuthStatus();
   }, [checkAuthStatus, authSuccess]);
   
+  // Track last attempted playback to avoid retry loops on error
+  const lastPlayAttemptRef = useRef<{ trackId: string; timestamp: number } | null>(null);
+  
   // Handle actual audio playback based on session state
   useEffect(() => {
     if (!sessionState?.isHost) return; // Only host plays audio
@@ -79,8 +82,17 @@ export function SessionPage() {
     if (sessionState.isPlaying) {
       // Play the current track
       if (audioPlayer.currentTrackId !== currentTrack.tidalId) {
+        // Check if we just tried this track and it failed (prevent retry loop)
+        const lastAttempt = lastPlayAttemptRef.current;
+        const now = Date.now();
+        if (lastAttempt?.trackId === currentTrack.tidalId && now - lastAttempt.timestamp < 5000) {
+          // Don't retry for 5 seconds after a failure
+          return;
+        }
+        
+        lastPlayAttemptRef.current = { trackId: currentTrack.tidalId, timestamp: now };
         audioPlayer.playTrack(currentTrack.tidalId);
-      } else if (!audioPlayer.isPlaying) {
+      } else if (!audioPlayer.isPlaying && !audioPlayer.isLoading && !audioPlayer.error) {
         audioPlayer.resume();
       }
     } else {
@@ -89,7 +101,8 @@ export function SessionPage() {
         audioPlayer.pause();
       }
     }
-  }, [sessionState?.isPlaying, sessionState?.currentTrackIndex, sessionState?.queue, sessionState?.isHost, audioPlayer]);
+  // Only re-run when these specific values change, not the whole audioPlayer object
+  }, [sessionState?.isPlaying, sessionState?.currentTrackIndex, sessionState?.queue, sessionState?.isHost, audioPlayer.currentTrackId, audioPlayer.isPlaying, audioPlayer.isLoading, audioPlayer.error]);
   
   // Auto-advance when track ends
   useEffect(() => {
@@ -203,6 +216,23 @@ export function SessionPage() {
   // Handle Tidal login
   const handleTidalLogin = () => {
     window.location.href = `/api/auth/login?sessionId=${sessionId}`;
+  };
+  
+  // Handle Tidal logout (for re-authenticating with new scopes)
+  const handleTidalLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setIsAuthenticated(false);
+      // Clear error state so user can try again
+      if (audioPlayer.error) {
+        lastPlayAttemptRef.current = null;
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
   };
 
   const handleAddPlaylistTrack = (track: SearchResult, position: 'end' | 'next') => {
@@ -402,28 +432,39 @@ export function SessionPage() {
                 </button>
               )}
               
-              {/* Connected indicator */}
+              {/* Connected indicator - clickable to logout/re-auth */}
               {sessionState.isHost && isAuthenticated && (
-                <div 
+                <button
+                  onClick={handleTidalLogout}
+                  className="btn btn-ghost btn-sm"
                   style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: '6px',
                     padding: '6px 10px',
-                    background: 'rgba(0, 255, 170, 0.15)',
+                    background: audioPlayer.error?.includes('scope') 
+                      ? 'rgba(255, 100, 100, 0.15)' 
+                      : 'rgba(0, 255, 170, 0.15)',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: '0.75rem',
-                    color: 'var(--accent-green)',
+                    color: audioPlayer.error?.includes('scope') 
+                      ? '#ff6b6b' 
+                      : 'var(--accent-green)',
                   }}
+                  title={audioPlayer.error?.includes('scope') 
+                    ? 'Click to logout and re-login with updated permissions' 
+                    : 'Connected to Tidal - click to logout'}
                 >
                   <div style={{ 
                     width: '6px', 
                     height: '6px', 
                     borderRadius: '50%', 
-                    background: 'var(--accent-green)' 
+                    background: audioPlayer.error?.includes('scope') 
+                      ? '#ff6b6b' 
+                      : 'var(--accent-green)' 
                   }} />
-                  Tidal
-                </div>
+                  {audioPlayer.error?.includes('scope') ? 'Re-login' : 'Tidal ✓'}
+                </button>
               )}
               
               <button
