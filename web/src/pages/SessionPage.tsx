@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
-import { useTidalPlayer } from '../hooks/useTidalPlayer';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import type { SearchResult, Track, Playlist } from '../types';
 
 export function SessionPage() {
@@ -27,8 +27,8 @@ export function SessionPage() {
   const [activeTab, setActiveTab] = useState<'queue' | 'participants'>('queue');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Tidal player for opening tracks
-  const { openInTidal } = useTidalPlayer();
+  // Audio player for actual playback
+  const audioPlayer = useAudioPlayer();
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,6 +68,40 @@ export function SessionPage() {
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus, authSuccess]);
+  
+  // Handle actual audio playback based on session state
+  useEffect(() => {
+    if (!sessionState?.isHost) return; // Only host plays audio
+    
+    const currentTrack = sessionState.queue[sessionState.currentTrackIndex];
+    if (!currentTrack?.tidalId) return;
+    
+    if (sessionState.isPlaying) {
+      // Play the current track
+      if (audioPlayer.currentTrackId !== currentTrack.tidalId) {
+        audioPlayer.playTrack(currentTrack.tidalId);
+      } else if (!audioPlayer.isPlaying) {
+        audioPlayer.resume();
+      }
+    } else {
+      // Pause
+      if (audioPlayer.isPlaying) {
+        audioPlayer.pause();
+      }
+    }
+  }, [sessionState?.isPlaying, sessionState?.currentTrackIndex, sessionState?.queue, sessionState?.isHost, audioPlayer]);
+  
+  // Auto-advance when track ends
+  useEffect(() => {
+    if (!sessionState?.isHost) return;
+    
+    const cleanup = audioPlayer.onTrackEnded(() => {
+      console.log('Track ended, advancing to next');
+      playbackControl('next');
+    });
+    
+    return cleanup;
+  }, [audioPlayer, playbackControl, sessionState?.isHost]);
 
   // Join session on mount
   useEffect(() => {
@@ -1111,11 +1145,13 @@ export function SessionPage() {
           track={currentTrack}
           isPlaying={sessionState.isPlaying}
           isHost={sessionState.isHost}
+          isLoading={audioPlayer.isLoading}
+          progress={audioPlayer.progress}
+          playbackError={audioPlayer.error}
           onPlay={() => playbackControl('play')}
           onPause={() => playbackControl('pause')}
           onNext={() => playbackControl('next')}
           onPrevious={() => playbackControl('previous')}
-          onOpenInTidal={() => currentTrack.tidalId && openInTidal(currentTrack.tidalId)}
           formatDuration={formatDuration}
         />
       )}
@@ -1331,21 +1367,25 @@ function NowPlayingBar({
   track,
   isPlaying,
   isHost,
+  isLoading,
+  progress,
+  playbackError,
   onPlay,
   onPause,
   onNext,
   onPrevious,
-  onOpenInTidal,
   formatDuration,
 }: {
   track: Track;
   isPlaying: boolean;
   isHost: boolean;
+  isLoading?: boolean;
+  progress?: number;
+  playbackError?: string | null;
   onPlay: () => void;
   onPause: () => void;
   onNext: () => void;
   onPrevious: () => void;
-  onOpenInTidal: () => void;
   formatDuration: (s: number) => string;
 }) {
   return (
@@ -1354,12 +1394,36 @@ function NowPlayingBar({
       animate={{ y: 0 }}
       className="now-playing"
     >
+      {/* Progress bar */}
+      {isHost && progress !== undefined && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '3px',
+            background: 'rgba(255,255,255,0.1)',
+          }}
+        >
+          <motion.div
+            style={{
+              height: '100%',
+              background: 'var(--accent-cyan)',
+              width: `${progress}%`,
+            }}
+            initial={false}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5, ease: 'linear' }}
+          />
+        </div>
+      )}
+      
       <div className="container">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-          {/* Album art - clickable to open in Tidal */}
+          {/* Album art */}
           <motion.img
-            onClick={onOpenInTidal}
-            animate={isPlaying ? { rotate: 360 } : {}}
+            animate={isPlaying && !isLoading ? { rotate: 360 } : {}}
             transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
             src={track.albumArt || undefined}
             alt={track.album}
@@ -1369,10 +1433,8 @@ function NowPlayingBar({
               borderRadius: isPlaying ? '50%' : 'var(--radius-sm)',
               objectFit: 'cover',
               transition: 'border-radius 0.3s',
-              cursor: 'pointer',
               background: track.albumArt ? undefined : 'var(--bg-elevated)',
             }}
-            title="Open in Tidal"
           />
 
           {/* Track info */}
@@ -1399,14 +1461,20 @@ function NowPlayingBar({
             >
               {track.artist}
             </div>
+            {/* Show playback error if any */}
+            {playbackError && isHost && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', marginTop: '2px' }}>
+                ⚠ {playbackError}
+              </div>
+            )}
           </div>
 
           {/* Playback controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             {isHost && (
               <>
-                <button onClick={onPrevious} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button onClick={onPrevious} className="btn btn-ghost btn-icon" style={{ width: '44px', height: '44px' }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="19 20 9 12 19 4 19 20" />
                     <line x1="5" y1="19" x2="5" y2="5" />
                   </svg>
@@ -1414,60 +1482,79 @@ function NowPlayingBar({
                 
                 <button
                   onClick={isPlaying ? onPause : onPlay}
-                  className="btn btn-ghost btn-icon"
-                  style={{ width: '40px', height: '40px' }}
+                  className="btn btn-primary btn-icon"
+                  style={{ 
+                    width: '56px', 
+                    height: '56px',
+                    borderRadius: '50%',
+                    background: 'var(--gradient-glow)',
+                    boxShadow: isPlaying ? 'var(--shadow-glow-cyan)' : 'none',
+                  }}
                   title={isPlaying ? 'Pause' : 'Play'}
+                  disabled={isLoading}
                 >
-                  {isPlaying ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="6" y="4" width="4" height="16" />
-                      <rect x="14" y="4" width="4" height="16" />
+                  {isLoading ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    </motion.div>
+                  ) : isPlaying ? (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
                     </svg>
                   ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5 3 19 12 5 21 5 3" />
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="6 3 20 12 6 21 6 3" />
                     </svg>
                   )}
                 </button>
                 
-                <button onClick={onNext} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button onClick={onNext} className="btn btn-ghost btn-icon" style={{ width: '44px', height: '44px' }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="5 4 15 12 5 20 5 4" />
                     <line x1="19" y1="5" x2="19" y2="19" />
                   </svg>
                 </button>
               </>
             )}
-            
-            {/* Play in Tidal button - always visible */}
-            <button
-              onClick={onOpenInTidal}
-              className="btn btn-primary"
-              style={{ 
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-              title="Play in Tidal"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-              </svg>
-              Play in Tidal
-            </button>
 
             {/* Playing indicator for non-hosts */}
-            {!isHost && isPlaying && (
-              <motion.div
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{ color: 'var(--accent-green)', fontSize: '0.875rem', marginLeft: '8px' }}
-              >
-                ● Playing
-              </motion.div>
+            {!isHost && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '8px 16px',
+                background: isPlaying ? 'rgba(0, 255, 170, 0.15)' : 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-md)',
+              }}>
+                {isPlaying ? (
+                  <>
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                      style={{ 
+                        width: '8px', 
+                        height: '8px', 
+                        borderRadius: '50%', 
+                        background: 'var(--accent-green)' 
+                      }}
+                    />
+                    <span style={{ color: 'var(--accent-green)', fontSize: '0.875rem', fontWeight: '500' }}>
+                      Now Playing
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted" style={{ fontSize: '0.875rem' }}>
+                    Paused
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
