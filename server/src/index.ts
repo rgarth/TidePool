@@ -11,6 +11,12 @@ import { nanoid } from 'nanoid';
 
 dotenv.config();
 
+// Fix for TLS certificate verification issues in development
+// This disables SSL cert verification - only use in development!
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 // Token persistence file (for development - survives server restarts)
 const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');
 
@@ -45,15 +51,12 @@ const TIDAL_API_URL = 'https://openapi.tidal.com';
 const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3001/api/auth/callback';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// OAuth scopes we need
+// OAuth scopes we need (minimal for playlist generator)
 const TIDAL_SCOPES = [
-  'user.read',
-  'collection.read', 
-  'search.read',
-  'playlists.read',
-  'playlists.write',
-  'entitlements.read',
-  'playback',  // Required for streaming audio
+  'user.read',        // Get user ID for playlist creation
+  'search.read',      // Search for tracks
+  'playlists.read',   // List user's playlists
+  'playlists.write',  // Create playlists and add tracks
 ].join(' ');
 
 // User tokens storage (in production, use Redis/DB)
@@ -63,6 +66,7 @@ interface UserTokens {
   refreshToken: string;
   expiresAt: number;
   countryCode: string;
+  userId: string; // Store user ID from OAuth
 }
 // Load tokens from disk on startup (survives server restarts during dev)
 const hostTokens = loadTokens() as Map<string, UserTokens>;
@@ -80,7 +84,7 @@ function generateCodeChallenge(verifier: string): string {
 const pendingAuth = new Map<string, { codeVerifier: string; sessionId: string; hostToken: string }>();
 
 // Get user's access token (with auto-refresh)
-async function getHostAccessToken(hostToken: string): Promise<{ token: string; countryCode: string } | null> {
+async function getHostAccessToken(hostToken: string): Promise<{ token: string; countryCode: string; userId: string } | null> {
   const tokens = hostTokens.get(hostToken);
   if (!tokens) return null;
   
@@ -93,7 +97,7 @@ async function getHostAccessToken(hostToken: string): Promise<{ token: string; c
         accessToken: refreshed.access_token,
         expiresAt: Date.now() + refreshed.expires_in * 1000,
       });
-      return { token: refreshed.access_token, countryCode: tokens.countryCode };
+      return { token: refreshed.access_token, countryCode: tokens.countryCode, userId: tokens.userId };
     } catch (err) {
       console.error('Failed to refresh token:', err);
       hostTokens.delete(hostToken);
@@ -101,7 +105,7 @@ async function getHostAccessToken(hostToken: string): Promise<{ token: string; c
     }
   }
   
-  return { token: tokens.accessToken, countryCode: tokens.countryCode };
+  return { token: tokens.accessToken, countryCode: tokens.countryCode, userId: tokens.userId };
 }
 
 // Refresh access token
@@ -191,40 +195,118 @@ async function searchTidal(accessToken: string, query: string, countryCode: stri
   return tracksData;
 }
 
-// Get track playback info (stream URL)
-async function getPlaybackInfo(accessToken: string, trackId: string, countryCode: string): Promise<any> {
-  // Use v1 API for playback info
-  const url = `https://api.tidal.com/v1/tracks/${trackId}/playbackinfo?audioquality=HIGH&playbackmode=STREAM&assetpresentation=FULL`;
-  
-  console.log(`>>> getPlaybackInfo for track ${trackId}`);
-  
-  // Generate a streaming session ID (UUID-like)
-  const streamingSessionId = crypto.randomUUID();
+// Get user info (needed for user ID) - try api.tidal.com (older API)
+async function getUserInfo(accessToken: string): Promise<any> {
+  // Try api.tidal.com (v1 API base)
+  const url = 'https://api.tidal.com/v1/sessions';
+  console.log(`>>> getUserInfo URL: ${url}`);
   
   const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'x-tidal-token': TIDAL_CLIENT_ID || '',
-      'x-tidal-streamingsessionid': streamingSessionId,
     },
   });
   
+  console.log(`>>> getUserInfo response status: ${response.status}`);
+  
   if (!response.ok) {
     const error = await response.text();
-    console.error(`>>> Playback info error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playback info: ${response.status} - ${error.substring(0, 200)}`);
+    console.error(`>>> Get user info failed (${response.status}):`, error.substring(0, 500));
+    return null;
   }
   
+  const data = await response.json();
+  console.log(`>>> getUserInfo data:`, JSON.stringify(data).substring(0, 500));
+  return data;
+}
+
+// NOTE: Listing user playlists is NOT supported by the Tidal Developer Portal API
+// The r_usr scope required for /v1/users/{id}/playlists is not available to third-party apps
+// We can only create NEW playlists and read playlists by ID
+
+// Create a new playlist
+async function createPlaylist(accessToken: string, name: string, description: string = ''): Promise<any> {
+  const url = 'https://openapi.tidal.com/v2/playlists';
+  
+  console.log(`>>> Creating playlist: "${name}"`);
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'playlists',
+        attributes: {
+          name,
+          description,
+          privacy: 'PUBLIC', // Make it public so others can see it
+        },
+      },
+    }),
+  });
+
+  console.log(`>>> Create playlist response status: ${response.status}`);
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Create playlist error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to create playlist: ${response.status} - ${error.substring(0, 200)}`);
+  }
+
   return response.json();
 }
 
-// Get user's playlists
-// Using v2 API: https://openapi.tidal.com/v2/
-async function getUserPlaylists(accessToken: string, countryCode: string): Promise<any> {
-  const url = `https://openapi.tidal.com/v2/userPlaylists?countryCode=${countryCode}&limit=50`;
+// Add tracks to a playlist
+async function addTracksToPlaylist(accessToken: string, playlistId: string, trackIds: string[]): Promise<any> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
   
-  console.log(`>>> getUserPlaylists URL: ${url}`);
+  console.log(`>>> Adding ${trackIds.length} tracks to playlist ${playlistId}`);
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: trackIds.map(id => ({
+        type: 'tracks',
+        id,
+      })),
+    }),
+  });
+
+  console.log(`>>> Add tracks response status: ${response.status}`);
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Add tracks error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to add tracks: ${response.status} - ${error.substring(0, 200)}`);
+  }
+
+  // 201 and 204 can both have empty bodies
+  const text = await response.text();
+  if (!text) {
+    return { success: true };
+  }
+  
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { success: true };
+  }
+}
+
+// Get playlist track IDs
+async function getPlaylistTrackIds(accessToken: string, playlistId: string): Promise<string[]> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
+  
+  console.log(`>>> getPlaylistTrackIds URL: ${url}`);
   
   const response = await fetch(url, {
     headers: {
@@ -233,22 +315,25 @@ async function getUserPlaylists(accessToken: string, countryCode: string): Promi
     },
   });
 
-  console.log(`>>> Playlists response status: ${response.status}`);
-  
   if (!response.ok) {
     const error = await response.text();
-    console.error(`>>> Tidal playlists error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playlists: ${response.status} - ${error.substring(0, 200)}`);
+    console.error(`>>> Playlist items error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to get playlist items: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  return (data.data || []).map((item: any) => item.id);
 }
 
-// Get playlist tracks
-async function getPlaylistTracks(accessToken: string, playlistId: string, countryCode: string): Promise<any> {
-  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items?countryCode=${countryCode}&limit=100`;
+// Fetch full track details for a list of track IDs (with artists and album art)
+async function getTrackDetails(accessToken: string, trackIds: string[], countryCode: string): Promise<Track[]> {
+  if (trackIds.length === 0) return [];
   
-  console.log(`>>> getPlaylistTracks URL: ${url}`);
+  // Batch up to 50 tracks at a time
+  const batchIds = trackIds.slice(0, 50).join(',');
+  const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds}&include=albums.coverArt,artists`;
+  
+  console.log(`>>> Fetching ${trackIds.length} track details`);
   
   const response = await fetch(url, {
     headers: {
@@ -257,15 +342,109 @@ async function getPlaylistTracks(accessToken: string, playlistId: string, countr
     },
   });
 
-  console.log(`>>> Playlist tracks response status: ${response.status}`);
-  
   if (!response.ok) {
-    const error = await response.text();
-    console.error(`>>> Tidal playlist tracks error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playlist tracks: ${response.status} - ${error.substring(0, 200)}`);
+    console.error(`>>> Failed to fetch track details: ${response.status}`);
+    return [];
   }
 
-  return response.json();
+  const data = await response.json();
+  return parseTrackData(data, trackIds);
+}
+
+// Parse track data from JSON:API response (shared between search and playlist)
+function parseTrackData(data: any, orderedIds?: string[]): Track[] {
+  const trackData = Array.isArray(data.data) ? data.data : [];
+  const included = data.included || [];
+  
+  // Build maps for quick lookup
+  const albumMap = new Map<string, any>();
+  const artistMap = new Map<string, any>();
+  const artworkMap = new Map<string, any>();
+  
+  included.forEach((item: any) => {
+    if (item.type === 'albums') albumMap.set(item.id, item);
+    if (item.type === 'artists') artistMap.set(item.id, item);
+    if (item.type === 'artworks') artworkMap.set(item.id, item);
+  });
+  
+  // Parse ISO 8601 duration (PT3M20S) to seconds
+  function parseDuration(isoDuration: string): number {
+    if (!isoDuration) return 0;
+    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    const hours = parseInt(match[1] || '0', 10);
+    const minutes = parseInt(match[2] || '0', 10);
+    const seconds = parseInt(match[3] || '0', 10);
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  
+  // Create a map of tracks for ordering
+  const trackMap = new Map<string, Track>();
+  
+  trackData.forEach((track: any) => {
+    const attrs = track.attributes || {};
+    const relationships = track.relationships || {};
+    
+    // Get album info
+    const albumRef = relationships.albums?.data?.[0];
+    const album = albumRef ? albumMap.get(albumRef.id) : null;
+    const albumAttrs = album?.attributes || {};
+    const albumRelationships = album?.relationships || {};
+    
+    // Get artist info
+    const artistRefs = relationships.artists?.data || [];
+    const artistNames = artistRefs.map((ref: any) => {
+      const artist = artistMap.get(ref.id);
+      return artist?.attributes?.name || 'Unknown';
+    }).join(', ') || 'Unknown Artist';
+    
+    // Get album art from coverArt relationship -> artworks
+    let albumArt = '';
+    const coverArtRef = albumRelationships.coverArt?.data?.[0];
+    if (coverArtRef) {
+      const artwork = artworkMap.get(coverArtRef.id);
+      if (artwork?.attributes?.files) {
+        const files = artwork.attributes.files;
+        // Find 320x320 or closest size
+        const img = files.find((f: any) => f.meta?.width === 320) ||
+                    files.find((f: any) => f.meta?.width >= 160) ||
+                    files[0];
+        albumArt = img?.href || '';
+      }
+    }
+    
+    trackMap.set(track.id, {
+      id: track.id?.toString() || nanoid(),
+      tidalId: track.id?.toString(),
+      title: attrs.title || 'Unknown',
+      artist: artistNames,
+      album: albumAttrs.title || 'Unknown Album',
+      duration: parseDuration(attrs.duration),
+      albumArt,
+      addedBy: 'Tidal',
+    });
+  });
+  
+  // Return in the order of the original IDs if provided
+  if (orderedIds) {
+    return orderedIds
+      .map(id => trackMap.get(id))
+      .filter((t): t is Track => t !== undefined);
+  }
+  
+  return Array.from(trackMap.values());
+}
+
+// Get full playlist with track details
+async function getPlaylistWithFullTracks(accessToken: string, playlistId: string, countryCode: string): Promise<Track[]> {
+  // 1. Get track IDs from playlist
+  const trackIds = await getPlaylistTrackIds(accessToken, playlistId);
+  console.log(`>>> Playlist has ${trackIds.length} tracks`);
+  
+  if (trackIds.length === 0) return [];
+  
+  // 2. Fetch full track details
+  return getTrackDetails(accessToken, trackIds, countryCode);
 }
 
 const app = express();
@@ -300,11 +479,13 @@ interface Session {
   id: string;
   hostId: string;
   name: string;
-  queue: Track[];
-  currentTrackIndex: number;
-  isPlaying: boolean;
+  // Playlist info (created in Tidal)
+  tidalPlaylistId?: string;
+  tidalPlaylistUrl?: string;
+  // Track list (mirrored from playlist for display)
+  tracks: Track[];
   createdAt: Date;
-  participants: Map<string, string>; // odcketId -> displayName
+  participants: Map<string, string>; // socketId -> displayName
 }
 
 // In-memory storage (replace with Redis/DB for production)
@@ -411,20 +592,48 @@ app.get('/api/auth/callback', async (req, res) => {
     const tokens = await tokenResponse.json();
     console.log('Got tokens, fetching user info...');
     
-    // Get user info to determine country code
-    const userResponse = await fetch(`${TIDAL_API_URL}/users/me`, {
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/vnd.tidal.v1+json',
-        'Accept': 'application/vnd.tidal.v1+json',
-      },
-    });
-
-    let countryCode = 'US'; // Default
-    if (userResponse.ok) {
-      const userData = await userResponse.json();
-      countryCode = userData.countryCode || userData.country || 'US';
-      console.log(`User country: ${countryCode}`);
+    // Get user info to determine country code AND user ID
+    // Try multiple endpoints since Tidal API is inconsistent
+    let countryCode = 'US';
+    let userId = '';
+    
+    // Try v2 API first
+    const userUrls = [
+      'https://openapi.tidal.com/v2/users/me',
+      'https://openapi.tidal.com/users/me',
+      'https://api.tidal.com/v1/users/me',
+    ];
+    
+    for (const url of userUrls) {
+      console.log(`>>> Trying user info URL: ${url}`);
+      const userResponse = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/vnd.api+json',
+          'Accept': 'application/vnd.api+json',
+        },
+      });
+      
+      console.log(`>>> Response status: ${userResponse.status}`);
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        console.log(`>>> User data:`, JSON.stringify(userData).substring(0, 500));
+        // Handle both v1 and v2 response formats
+        const data = userData.data || userData;
+        const attrs = data.attributes || data;
+        countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
+        userId = data.id?.toString() || attrs.userId?.toString() || data.userId?.toString() || '';
+        console.log(`User country: ${countryCode}, userId: ${userId}`);
+        break;
+      } else {
+        const errorText = await userResponse.text();
+        console.log(`>>> Failed (${userResponse.status}):`, errorText.substring(0, 200));
+      }
+    }
+    
+    if (!userId) {
+      console.error('Could not get user ID from any endpoint');
     }
 
     // Store tokens against hostToken (persists across sessions)
@@ -433,6 +642,7 @@ app.get('/api/auth/callback', async (req, res) => {
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
       countryCode,
+      userId,
     });
     
     // Save to disk (survives server restarts during dev)
@@ -610,9 +820,7 @@ app.post('/api/sessions', (req, res) => {
     id: sessionId,
     hostId: '', // Will be set when host connects via WebSocket
     name: sessionName,
-    queue: [],
-    currentTrackIndex: 0,
-    isPlaying: false,
+    tracks: [],
     createdAt: new Date(),
     participants: new Map(),
   };
@@ -635,9 +843,9 @@ app.get('/api/sessions/:sessionId', (req, res) => {
   res.json({
     id: session.id,
     name: session.name,
-    queue: session.queue,
-    currentTrackIndex: session.currentTrackIndex,
-    isPlaying: session.isPlaying,
+    tracks: session.tracks,
+    tidalPlaylistId: session.tidalPlaylistId,
+    tidalPlaylistUrl: session.tidalPlaylistUrl,
     participantCount: session.participants.size,
   });
 });
@@ -759,9 +967,23 @@ app.get('/api/tidal/search', async (req, res) => {
   }
 });
 
-// Get track playback info (stream URL)
-app.get('/api/tidal/playback/:trackId', async (req, res) => {
-  const { trackId } = req.params;
+
+// Get user's playlists - NOT SUPPORTED
+// The Tidal Developer Portal API doesn't expose endpoints to list user playlists
+// We can only CREATE new playlists and READ playlists by ID
+app.get('/api/tidal/playlists', async (req, res) => {
+  // This feature is not available with the current Tidal API scopes
+  return res.status(501).json({ 
+    error: 'Listing existing playlists is not supported by the Tidal API',
+    message: 'You can only create new playlists. The Tidal Developer Portal API does not provide access to list user playlists.',
+    authRequired: false,
+  });
+});
+
+// Create a new playlist
+app.post('/api/tidal/playlists', async (req, res) => {
+  const { name, description } = req.body;
+  
   const hostToken = req.cookies.tidepool_host;
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
@@ -769,82 +991,69 @@ app.get('/api/tidal/playback/:trackId', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
+  if (!name) {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+  
   try {
-    const playbackInfo = await getPlaybackInfo(auth.token, trackId, auth.countryCode);
-    console.log('>>> Playback info:', JSON.stringify(playbackInfo).substring(0, 500));
+    const result = await createPlaylist(auth.token, name, description || '');
     
-    // The manifest contains the actual stream URL (usually base64 encoded)
-    // Decode if needed
-    let streamUrl = '';
-    if (playbackInfo.manifest) {
-      try {
-        const decoded = Buffer.from(playbackInfo.manifest, 'base64').toString('utf-8');
-        console.log('>>> Decoded manifest:', decoded.substring(0, 500));
-        
-        // Parse the manifest - it could be JSON or XML
-        if (decoded.startsWith('{')) {
-          const manifest = JSON.parse(decoded);
-          streamUrl = manifest.urls?.[0] || manifest.url || '';
-        } else if (decoded.includes('http')) {
-          // Extract URL from XML or plain text
-          const urlMatch = decoded.match(/https?:\/\/[^\s<>"]+/);
-          streamUrl = urlMatch ? urlMatch[0] : '';
-        }
-      } catch (e) {
-        console.error('>>> Failed to decode manifest:', e);
-      }
-    }
+    // Extract playlist info from response
+    const playlist = result.data || result;
+    const playlistId = playlist.id || playlist.uuid;
+    
+    console.log(`Created playlist: ${playlistId}`);
     
     res.json({
-      trackId,
-      streamUrl,
-      manifestMimeType: playbackInfo.manifestMimeType,
-      audioQuality: playbackInfo.audioQuality,
-      raw: playbackInfo,
+      id: playlistId,
+      name: playlist.attributes?.name || name,
+      tidalUrl: `https://tidal.com/playlist/${playlistId}`,
+      listenUrl: `https://listen.tidal.com/playlist/${playlistId}`,
     });
   } catch (error: any) {
-    console.error('>>> Playback error:', error.message);
+    console.error('>>> Create playlist error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get user's playlists
-app.get('/api/tidal/playlists', async (req, res) => {
-  // Get host's token from cookie
+// Add tracks to a playlist - then fetch real data from Tidal and broadcast to all clients
+app.post('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
+  const { playlistId } = req.params;
+  const { trackIds, sessionId } = req.body; // Array of Tidal track IDs + session to broadcast to
+  
   const hostToken = req.cookies.tidepool_host;
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
-    console.log('>>> NO AUTH for playlists');
-    return res.status(401).json({ error: 'Not authenticated', authRequired: true });
+    return res.status(401).json({ error: 'Not authenticated' });
   }
-
+  
+  if (!trackIds || !Array.isArray(trackIds) || trackIds.length === 0) {
+    return res.status(400).json({ error: 'trackIds array is required' });
+  }
+  
   try {
-    const tidalPlaylists = await getUserPlaylists(auth.token, auth.countryCode);
+    // 1. Add to Tidal
+    await addTracksToPlaylist(auth.token, playlistId, trackIds);
+    console.log(`Added ${trackIds.length} tracks to playlist ${playlistId}`);
     
-    // Transform response
-    const playlistData = tidalPlaylists.items || tidalPlaylists.data || [];
+    // 2. Fetch the REAL playlist from Tidal (source of truth)
+    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
     
-    const playlists = playlistData.map((item: any) => {
-      const playlist = item.resource || item;
-      return {
-        id: playlist.uuid || playlist.id,
-        name: playlist.title || playlist.name || 'Untitled',
-        trackCount: playlist.numberOfTracks || playlist.trackCount || 0,
-        duration: playlist.duration || 0,
-        imageUrl: playlist.squareImage?.[0]?.url || 
-                  playlist.image ||
-                  `https://picsum.photos/seed/${playlist.uuid || playlist.id}/300/300`,
-        description: playlist.description || '',
-      };
-    });
+    // 3. If sessionId provided, broadcast to all clients in that session
+    if (sessionId) {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        session.tracks = tracks; // Update server-side state
+        io.to(session.id).emit('playlist_synced', { tracks });
+        console.log(`Broadcasted ${tracks.length} tracks to session ${sessionId}`);
+      }
+    }
     
-    console.log(`Got ${playlists.length} playlists`);
-    return res.json({ playlists, authRequired: false });
-    
+    res.json({ success: true, added: trackIds.length, tracks });
   } catch (error: any) {
-    console.error('>>> Tidal playlists FAILED:', error);
-    return res.status(500).json({ error: `Failed to load playlists: ${error.message}` });
+    console.error('>>> Add tracks error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -862,27 +1071,7 @@ app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   }
 
   try {
-    const tidalTracks = await getPlaylistTracks(auth.token, playlistId, auth.countryCode);
-    
-    // Transform response
-    const trackData = tidalTracks.items || tidalTracks.data || [];
-    
-    const tracks = trackData.map((item: any) => {
-      const track = item.item?.resource || item.item || item.resource || item;
-      return {
-        id: track.id?.toString() || nanoid(),
-        tidalId: track.id?.toString(),
-        title: track.title || 'Unknown',
-        artist: track.artists?.map((a: any) => a.name).join(', ') || 
-                track.artist?.name || 'Unknown Artist',
-        album: track.album?.title || 'Unknown Album',
-        duration: track.duration || 0,
-        albumArt: track.album?.imageCover?.[0]?.url ||
-                  (track.album?.cover ? 
-                    `https://resources.tidal.com/images/${track.album.cover.replace(/-/g, '/')}/320x320.jpg` :
-                    `https://picsum.photos/seed/${track.id}/300/300`),
-      };
-    });
+    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
     
     console.log(`Got ${tracks.length} tracks from playlist ${playlistId}`);
     return res.json({ tracks, authRequired: false });
@@ -893,139 +1082,39 @@ app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   }
 });
 
-function generateMockPlaylists() {
-  return {
-    playlists: [
-      {
-        id: 'pl_roadtrip',
-        name: 'Road Trip Bangers 🚗',
-        trackCount: 47,
-        duration: 10920,
-        imageUrl: 'https://picsum.photos/seed/roadtrip/300/300',
-        description: 'The ultimate driving playlist',
-      },
-      {
-        id: 'pl_chill',
-        name: 'Chill Vibes',
-        trackCount: 32,
-        duration: 7680,
-        imageUrl: 'https://picsum.photos/seed/chill/300/300',
-        description: 'Relaxed tunes for easy listening',
-      },
-      {
-        id: 'pl_90s',
-        name: '90s Throwbacks',
-        trackCount: 55,
-        duration: 13200,
-        imageUrl: 'https://picsum.photos/seed/90s/300/300',
-        description: 'Nostalgia hits from the 90s',
-      },
-      {
-        id: 'pl_workout',
-        name: 'Workout Mix 💪',
-        trackCount: 28,
-        duration: 6720,
-        imageUrl: 'https://picsum.photos/seed/workout/300/300',
-        description: 'High energy tracks',
-      },
-      {
-        id: 'pl_indie',
-        name: 'Indie Discoveries',
-        trackCount: 41,
-        duration: 9840,
-        imageUrl: 'https://picsum.photos/seed/indie/300/300',
-        description: 'Fresh indie finds',
-      },
-    ],
-  };
-}
+// Refresh playlist from Tidal and broadcast to all session clients
+app.get('/api/tidal/playlists/:playlistId/refresh', async (req, res) => {
+  const { playlistId } = req.params;
+  const { sessionId } = req.query;
 
-function generateMockPlaylistTracks(playlistId: string) {
-  const playlistTracks: Record<string, Array<{ title: string; artist: string; album: string; duration: number }>> = {
-    pl_roadtrip: [
-      { title: 'Life is a Highway', artist: 'Tom Cochrane', album: 'Mad Mad World', duration: 264 },
-      { title: 'Born to Run', artist: 'Bruce Springsteen', album: 'Born to Run', duration: 270 },
-      { title: 'Take It Easy', artist: 'Eagles', album: 'Eagles', duration: 211 },
-      { title: 'Sweet Home Alabama', artist: 'Lynyrd Skynyrd', album: "Second Helping", duration: 284 },
-      { title: 'On the Road Again', artist: 'Willie Nelson', album: 'Honeysuckle Rose', duration: 157 },
-      { title: 'Radar Love', artist: 'Golden Earring', album: 'Moontan', duration: 378 },
-      { title: 'Running Down a Dream', artist: 'Tom Petty', album: 'Full Moon Fever', duration: 278 },
-      { title: 'Go Your Own Way', artist: 'Fleetwood Mac', album: 'Rumours', duration: 222 },
-    ],
-    pl_chill: [
-      { title: 'Sunset Lover', artist: 'Petit Biscuit', album: 'Presence', duration: 237 },
-      { title: 'Electric Feel', artist: 'MGMT', album: 'Oracular Spectacular', duration: 229 },
-      { title: 'Intro', artist: 'The xx', album: 'xx', duration: 128 },
-      { title: 'Midnight City', artist: 'M83', album: 'Hurry Up, We\'re Dreaming', duration: 243 },
-      { title: 'Breathe', artist: 'Télépopmusik', album: 'Genetic World', duration: 283 },
-    ],
-    pl_90s: [
-      { title: 'Smells Like Teen Spirit', artist: 'Nirvana', album: 'Nevermind', duration: 301 },
-      { title: 'Wonderwall', artist: 'Oasis', album: "(What's the Story) Morning Glory?", duration: 258 },
-      { title: 'Creep', artist: 'Radiohead', album: 'Pablo Honey', duration: 239 },
-      { title: 'Losing My Religion', artist: 'R.E.M.', album: 'Out of Time', duration: 269 },
-      { title: 'Black Hole Sun', artist: 'Soundgarden', album: 'Superunknown', duration: 320 },
-      { title: 'Under the Bridge', artist: 'Red Hot Chili Peppers', album: 'Blood Sugar Sex Magik', duration: 264 },
-    ],
-    pl_workout: [
-      { title: 'Lose Yourself', artist: 'Eminem', album: '8 Mile', duration: 326 },
-      { title: 'Stronger', artist: 'Kanye West', album: 'Graduation', duration: 312 },
-      { title: "Can't Hold Us", artist: 'Macklemore & Ryan Lewis', album: 'The Heist', duration: 258 },
-      { title: 'Eye of the Tiger', artist: 'Survivor', album: 'Eye of the Tiger', duration: 245 },
-      { title: 'Till I Collapse', artist: 'Eminem', album: 'The Eminem Show', duration: 297 },
-    ],
-    pl_indie: [
-      { title: 'Do I Wanna Know?', artist: 'Arctic Monkeys', album: 'AM', duration: 272 },
-      { title: 'Take Me Out', artist: 'Franz Ferdinand', album: 'Franz Ferdinand', duration: 237 },
-      { title: 'Somebody That I Used to Know', artist: 'Gotye', album: 'Making Mirrors', duration: 244 },
-      { title: 'Ho Hey', artist: 'The Lumineers', album: 'The Lumineers', duration: 163 },
-      { title: 'Pumped Up Kicks', artist: 'Foster the People', album: 'Torches', duration: 239 },
-    ],
-  };
-
-  const tracks = playlistTracks[playlistId] || playlistTracks.pl_roadtrip;
+  const hostToken = req.cookies.tidepool_host;
+  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
-  return {
-    tracks: tracks.map((t, i) => ({
-      id: `${playlistId}_${i}`,
-      tidalId: `tidal_${playlistId}_${i}`,
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      duration: t.duration,
-      albumArt: `https://picsum.photos/seed/${playlistId}${i}/300/300`,
-    })),
-  };
-}
+  if (!auth) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
-function generateMockSearchResults(query: string) {
-  // Mock search results for development
-  // Will be replaced with real Tidal API calls
-  const mockTracks = [
-    { id: '1', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera', duration: 354 },
-    { id: '2', title: 'Hotel California', artist: 'Eagles', album: 'Hotel California', duration: 390 },
-    { id: '3', title: 'Stairway to Heaven', artist: 'Led Zeppelin', album: 'Led Zeppelin IV', duration: 482 },
-    { id: '4', title: 'Sweet Child O\' Mine', artist: 'Guns N\' Roses', album: 'Appetite for Destruction', duration: 356 },
-    { id: '5', title: 'Smells Like Teen Spirit', artist: 'Nirvana', album: 'Nevermind', duration: 301 },
-    { id: '6', title: 'Billie Jean', artist: 'Michael Jackson', album: 'Thriller', duration: 294 },
-    { id: '7', title: 'Like a Rolling Stone', artist: 'Bob Dylan', album: 'Highway 61 Revisited', duration: 369 },
-    { id: '8', title: 'Purple Rain', artist: 'Prince', album: 'Purple Rain', duration: 520 },
-  ];
+  try {
+    // Fetch from Tidal (source of truth)
+    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
+    
+    // Broadcast to all clients in session
+    if (sessionId && typeof sessionId === 'string') {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        session.tracks = tracks;
+        io.to(session.id).emit('playlist_synced', { tracks });
+        console.log(`Refreshed & broadcasted ${tracks.length} tracks to session ${sessionId}`);
+      }
+    }
+    
+    return res.json({ success: true, tracks });
+  } catch (error: any) {
+    console.error('>>> Refresh playlist FAILED:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
-  const filtered = mockTracks.filter(
-    (t) =>
-      t.title.toLowerCase().includes(query.toLowerCase()) ||
-      t.artist.toLowerCase().includes(query.toLowerCase())
-  );
-
-  return {
-    tracks: filtered.map((t) => ({
-      ...t,
-      tidalId: `tidal_${t.id}`,
-      albumArt: `https://picsum.photos/seed/${t.id}/300/300`,
-    })),
-  };
-}
 
 // WebSocket handling
 io.on('connection', (socket) => {
@@ -1057,9 +1146,9 @@ io.on('connection', (socket) => {
     socket.emit('session_state', {
       id: session.id,
       name: session.name,
-      queue: session.queue,
-      currentTrackIndex: session.currentTrackIndex,
-      isPlaying: session.isPlaying,
+      tracks: session.tracks,
+      tidalPlaylistId: session.tidalPlaylistId,
+      tidalPlaylistUrl: session.tidalPlaylistUrl,
       isHost,
       participants: Array.from(session.participants.values()),
     });
@@ -1073,8 +1162,8 @@ io.on('connection', (socket) => {
     console.log(`${displayName} joined session ${session.id} as ${isHost ? 'host' : 'guest'}`);
   });
 
-  // Add track to queue
-  socket.on('add_to_queue', ({ track, position }) => {
+  // Add track to playlist
+  socket.on('add_to_playlist', ({ track }) => {
     if (!currentSessionId) return;
     
     const session = sessions.get(currentSessionId);
@@ -1087,111 +1176,37 @@ io.on('connection', (socket) => {
       addedBy: displayName,
     };
 
-    if (position === 'next') {
-      // Insert after current track
-      const insertIndex = session.currentTrackIndex + 1;
-      session.queue.splice(insertIndex, 0, newTrack);
-    } else {
-      // Add to end
-      session.queue.push(newTrack);
-    }
+    // Add to local track list
+    session.tracks.push(newTrack);
 
-    // Broadcast updated queue to all clients in session
-    io.to(session.id).emit('queue_updated', {
-      queue: session.queue,
-      action: position === 'next' ? 'play_next' : 'added',
+    // Broadcast updated playlist to all clients in session
+    io.to(session.id).emit('playlist_updated', {
+      tracks: session.tracks,
+      action: 'added',
       track: newTrack,
+      addedBy: displayName,
     });
     
-    console.log(`${displayName} added "${track.title}" to queue (${position})`);
+    console.log(`${displayName} added "${track.title}" to playlist`);
   });
 
-  // Remove track from queue
-  socket.on('remove_from_queue', ({ trackId }) => {
-    if (!currentSessionId) return;
-    
-    const session = sessions.get(currentSessionId);
-    if (!session) return;
-    
-    const index = session.queue.findIndex((t) => t.id === trackId);
-    if (index !== -1) {
-      const removed = session.queue.splice(index, 1)[0];
-      
-      // Adjust currentTrackIndex if needed
-      if (index < session.currentTrackIndex) {
-        session.currentTrackIndex--;
-      }
-      
-      io.to(session.id).emit('queue_updated', {
-        queue: session.queue,
-        currentTrackIndex: session.currentTrackIndex,
-        action: 'removed',
-        track: removed,
-      });
-    }
-  });
-
-  // Host playback controls
-  socket.on('playback_control', ({ action, trackIndex }) => {
+  // Set playlist ID for session (called by host after creating playlist in Tidal)
+  socket.on('set_playlist', ({ tidalPlaylistId, tidalPlaylistUrl }) => {
     if (!currentSessionId || !isHost) return;
     
     const session = sessions.get(currentSessionId);
     if (!session) return;
 
-    switch (action) {
-      case 'play':
-        session.isPlaying = true;
-        break;
-      case 'pause':
-        session.isPlaying = false;
-        break;
-      case 'next':
-        if (session.currentTrackIndex < session.queue.length - 1) {
-          session.currentTrackIndex++;
-        }
-        break;
-      case 'previous':
-        if (session.currentTrackIndex > 0) {
-          session.currentTrackIndex--;
-        }
-        break;
-      case 'jump':
-        if (trackIndex !== undefined && trackIndex >= 0 && trackIndex < session.queue.length) {
-          session.currentTrackIndex = trackIndex;
-        }
-        break;
-    }
+    session.tidalPlaylistId = tidalPlaylistId;
+    session.tidalPlaylistUrl = tidalPlaylistUrl;
 
-    io.to(session.id).emit('playback_state', {
-      isPlaying: session.isPlaying,
-      currentTrackIndex: session.currentTrackIndex,
-      currentTrack: session.queue[session.currentTrackIndex] || null,
+    // Notify all clients
+    io.to(session.id).emit('playlist_linked', {
+      tidalPlaylistId,
+      tidalPlaylistUrl,
     });
-  });
-
-  // Track ended (auto-advance)
-  socket.on('track_ended', () => {
-    if (!currentSessionId || !isHost) return;
     
-    const session = sessions.get(currentSessionId);
-    if (!session) return;
-
-    if (session.currentTrackIndex < session.queue.length - 1) {
-      session.currentTrackIndex++;
-      
-      io.to(session.id).emit('playback_state', {
-        isPlaying: true,
-        currentTrackIndex: session.currentTrackIndex,
-        currentTrack: session.queue[session.currentTrackIndex],
-      });
-    } else {
-      session.isPlaying = false;
-      io.to(session.id).emit('playback_state', {
-        isPlaying: false,
-        currentTrackIndex: session.currentTrackIndex,
-        currentTrack: session.queue[session.currentTrackIndex],
-      });
-    }
+    console.log(`Playlist ${tidalPlaylistId} linked to session ${currentSessionId}`);
   });
 
   // Disconnect
@@ -1216,13 +1231,12 @@ io.on('connection', (socket) => {
             if (hasPendingAuth) {
               console.log(`Session ${currentSessionId} kept alive (auth pending)`);
             } else {
-              // Give a 5-minute grace period before deleting
+              // Give a 5-minute grace period before deleting session
               console.log(`Session ${currentSessionId} will expire in 5 minutes (host left)`);
               setTimeout(() => {
                 const currentSession = sessions.get(currentSessionId!);
                 if (currentSession && currentSession.participants.size === 0) {
                   sessions.delete(currentSessionId!);
-                  userTokens.delete(currentSessionId!.toUpperCase());
                   console.log(`Session ${currentSessionId} expired`);
                 }
               }, 5 * 60 * 1000); // 5 minutes
