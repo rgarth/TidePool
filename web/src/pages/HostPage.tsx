@@ -1,41 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 export function HostPage() {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState('');
+  const [isChecking, setIsChecking] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const handleCreateSession = async () => {
-    setIsCreating(true);
-    setError('');
+  // Check if already logged in to Tidal
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/status', {
+          credentials: 'include',
+        });
+        const data = await response.json();
+        setIsAuthenticated(data.authenticated);
+      } catch (err) {
+        console.error('Auth check failed:', err);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
+  const handleLoginAndCreate = async (forceReauth = false) => {
+    // Create session first, then redirect to Tidal login
     try {
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostName: name.trim() || '' }), // Empty = random name
+        body: JSON.stringify({ hostName: '' }), // Will get random name
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create session');
-      }
+      if (!response.ok) throw new Error('Failed to create session');
 
       const data = await response.json();
       
-      // Store host info in sessionStorage (use session name if no user name provided)
-      sessionStorage.setItem('userName', name.trim() || data.name);
+      // Store host info
+      sessionStorage.setItem('userName', 'Host');
       sessionStorage.setItem('isHost', 'true');
       
-      // Navigate to the session
-      navigate(`/session/${data.sessionId}`);
+      if (isAuthenticated && !forceReauth) {
+        // Already logged in, go straight to session
+        navigate(`/session/${data.sessionId}`);
+      } else {
+        // Need to login - redirect to Tidal auth
+        window.location.href = `/api/auth/login?sessionId=${data.sessionId}`;
+      }
     } catch (err) {
-      setError('Failed to create session. Please try again.');
-      setIsCreating(false);
+      console.error('Failed to create session:', err);
     }
   };
+
+  const handleReauth = () => {
+    handleLoginAndCreate(true);
+  };
+
+  if (isChecking) {
+    return (
+      <div className="page page-centered">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid var(--bg-elevated)',
+            borderTopColor: 'var(--accent-cyan)',
+            borderRadius: '50%',
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="page page-centered">
@@ -59,6 +98,7 @@ export function HostPage() {
 
           <div className="card">
             <div style={{ marginBottom: 'var(--space-xl)' }}>
+              {/* Tidal-style icon */}
               <div
                 style={{
                   width: '64px',
@@ -71,105 +111,102 @@ export function HostPage() {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--bg-primary)' }}>
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--bg-primary)' }}>
+                  <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
                 </svg>
               </div>
               
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Start a Pool</h2>
+              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Host a Playlist</h2>
               <p className="text-secondary">
-                You'll be the DJ. Connect to the car stereo and let passengers queue songs.
+                Connect your Tidal account to host a collaborative playlist session.
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              <div>
-                <label
-                  htmlFor="name"
-                  style={{
-                    display: 'block',
-                    marginBottom: 'var(--space-sm)',
-                    fontSize: '0.875rem',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  Name this pool <span style={{ opacity: 0.6 }}>(optional)</span>
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  className="input input-lg"
-                  placeholder="Vegas Road Trip, Lake House Weekend..."
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
-                  autoFocus
-                />
-                <p className="text-muted" style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem' }}>
-                  Leave blank for a random fun name ✨
-                </p>
-              </div>
-
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    color: 'var(--accent-magenta)',
-                    fontSize: '0.875rem',
-                    textAlign: 'center',
-                  }}
-                >
-                  {error}
-                </motion.p>
-              )}
-
-              <button
-                className="btn btn-primary"
-                onClick={handleCreateSession}
-                disabled={isCreating}
-                style={{
-                  padding: 'var(--space-lg)',
-                  marginTop: 'var(--space-sm)',
-                  opacity: isCreating ? 0.7 : 1,
-                }}
-              >
-                {isCreating ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        border: '2px solid transparent',
-                        borderTopColor: 'currentColor',
-                        borderRadius: '50%',
-                      }}
-                    />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                    Create Session
-                  </>
+            {/* Tidal Connection Status */}
+            <div
+              style={{
+                padding: 'var(--space-md)',
+                marginBottom: 'var(--space-lg)',
+                borderRadius: 'var(--radius-md)',
+                background: isAuthenticated ? 'rgba(0, 180, 160, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${isAuthenticated ? 'rgba(0, 180, 160, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                  {/* Status indicator */}
+                  <div
+                    style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: isAuthenticated ? '#00b4a0' : 'var(--text-muted)',
+                      boxShadow: isAuthenticated ? '0 0 8px rgba(0, 180, 160, 0.5)' : 'none',
+                    }}
+                  />
+                  <span style={{ 
+                    fontWeight: 500,
+                    color: isAuthenticated ? '#00b4a0' : 'var(--text-secondary)',
+                  }}>
+                    {isAuthenticated ? 'Connected to Tidal' : 'Not connected'}
+                  </span>
+                </div>
+                {isAuthenticated && (
+                  <button
+                    onClick={handleReauth}
+                    className="btn btn-ghost"
+                    style={{ 
+                      padding: '4px 8px', 
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    Re-authenticate
+                  </button>
                 )}
-              </button>
+              </div>
+              {!isAuthenticated && (
+                <p className="text-muted" style={{ marginTop: 'var(--space-sm)', fontSize: '0.8rem' }}>
+                  You'll need to login to your Tidal account to host a playlist.
+                </p>
+              )}
             </div>
+
+            <button
+              className="btn btn-primary"
+              onClick={() => handleLoginAndCreate()}
+              style={{
+                width: '100%',
+                padding: 'var(--space-lg)',
+              }}
+            >
+              {isAuthenticated ? (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polygon points="10 8 16 12 10 16 10 8" />
+                  </svg>
+                  Start Hosting
+                </>
+              ) : (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
+                    <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
+                  </svg>
+                  Connect Tidal Account
+                </>
+              )}
+            </button>
           </div>
 
           <p className="text-muted" style={{ marginTop: 'var(--space-xl)', fontSize: '0.875rem' }}>
-            A unique code will be generated for others to join
+            {isAuthenticated 
+              ? "You'll get a code to share with your friends"
+              : "You'll be redirected to Tidal to authorize TidePool"
+            }
           </p>
         </motion.div>
       </div>
     </div>
   );
 }
-
