@@ -12,36 +12,60 @@ export function HomePage() {
         >
           {/* Logo / Brand */}
           <div style={{ marginBottom: 'var(--space-xl)' }}>
-            <motion.div
-              animate={{ 
-                boxShadow: [
-                  '0 0 30px rgba(0, 180, 216, 0.3)',
-                  '0 0 50px rgba(0, 180, 216, 0.5), 0 0 80px rgba(0, 119, 182, 0.4)',
-                  '0 0 30px rgba(0, 180, 216, 0.3)',
-                ]
-              }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            <div
               style={{
                 width: '100px',
                 height: '100px',
                 margin: '0 auto var(--space-lg)',
                 borderRadius: '24px',
-                background: 'linear-gradient(135deg, #00b4d8 0%, #0077b6 50%, #023e8a 100%)',
+                background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 50%, #000000 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              {/* Wave/tidepool icon */}
-              <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'white' }}>
-                <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
-                <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
-                <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+              {/* Pixel art wave icon */}
+              <svg width="56" height="56" viewBox="0 0 28 28" fill="white">
+                {/* Top wave - pixel art squares */}
+                <rect x="2" y="5" width="3" height="3" />
+                <rect x="5" y="8" width="3" height="3" />
+                <rect x="8" y="5" width="3" height="3" />
+                <rect x="11" y="8" width="3" height="3" />
+                <rect x="14" y="5" width="3" height="3" />
+                <rect x="17" y="8" width="3" height="3" />
+                <rect x="20" y="5" width="3" height="3" />
+                <rect x="23" y="8" width="3" height="3" />
+                {/* Middle wave */}
+                <rect x="2" y="13" width="3" height="3" />
+                <rect x="5" y="16" width="3" height="3" />
+                <rect x="8" y="13" width="3" height="3" />
+                <rect x="11" y="16" width="3" height="3" />
+                <rect x="14" y="13" width="3" height="3" />
+                <rect x="17" y="16" width="3" height="3" />
+                <rect x="20" y="13" width="3" height="3" />
+                <rect x="23" y="16" width="3" height="3" />
+                {/* Bottom wave */}
+                <rect x="2" y="21" width="3" height="3" />
+                <rect x="5" y="24" width="3" height="3" />
+                <rect x="8" y="21" width="3" height="3" />
+                <rect x="11" y="24" width="3" height="3" />
+                <rect x="14" y="21" width="3" height="3" />
+                <rect x="17" y="24" width="3" height="3" />
+                <rect x="20" y="21" width="3" height="3" />
+                <rect x="23" y="24" width="3" height="3" />
               </svg>
-            </motion.div>
+            </div>
             
-            <h1 style={{ marginBottom: 'var(--space-sm)' }}>
-              Tide<span style={{ color: '#00b4d8' }}>Pool</span>
+            <h1 style={{ 
+              marginBottom: 'var(--space-sm)',
+              fontFamily: 'var(--font-logo)',
+              fontWeight: 200,
+              fontSize: '3rem',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'white',
+            }}>
+              TidePool
             </h1>
             <p className="text-secondary" style={{ fontSize: '1.125rem' }}>
               Collaborative playlists for road trips

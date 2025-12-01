@@ -569,6 +569,27 @@ export function SessionPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            {sessionState.isHost && sessionState.tidalPlaylistId && (
+              <button 
+                onClick={refreshPlaylistFromTidal}
+                disabled={isRefreshing}
+                className="btn btn-ghost btn-sm"
+                title="Refresh from Tidal"
+              >
+                <motion.div
+                  animate={isRefreshing ? { rotate: 360 } : {}}
+                  transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
+                  style={{ display: 'flex' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                    <path d="M16 16h5v5" />
+                  </svg>
+                </motion.div>
+              </button>
+            )}
             {sessionState.isHost && (
               <button 
                 onClick={() => setShowPlaylistPicker(true)}
@@ -576,8 +597,9 @@ export function SessionPage() {
                 title="Switch playlist"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
+                  <path d="M3 6h18" />
+                  <path d="M3 12h18" />
+                  <path d="M3 18h18" />
                 </svg>
               </button>
             )}
@@ -660,37 +682,6 @@ export function SessionPage() {
             People ({sessionState.participants.length})
           </button>
           
-          {/* Refresh button */}
-          {sessionState.tidalPlaylistId && (
-            <button
-              onClick={refreshPlaylistFromTidal}
-              disabled={isRefreshing}
-              title="Refresh from Tidal"
-              style={{
-                marginLeft: 'auto',
-                background: 'none',
-                border: 'none',
-                padding: 'var(--space-sm)',
-                color: 'var(--text-muted)',
-                cursor: isRefreshing ? 'wait' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                borderBottom: '2px solid transparent',
-              }}
-            >
-              <motion.div
-                animate={isRefreshing ? { rotate: 360 } : {}}
-                transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                  <path d="M16 16h5v5" />
-                </svg>
-              </motion.div>
-            </button>
-          )}
         </div>
       </header>
 

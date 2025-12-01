@@ -46,6 +46,7 @@
   
   /* Typography */
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-logo: 'Montserrat', 'Avenir Next', 'Avenir', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
