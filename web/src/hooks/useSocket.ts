@@ -9,7 +9,7 @@ interface UseSocketReturn {
   error: string | null;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
   addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
-  setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string) => void;
+  setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
 }
 
 export function useSocket(): UseSocketReturn {
