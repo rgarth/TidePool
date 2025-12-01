@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: tidepool-api
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TIDAL_CLIENT_ID
+        sync: false
+      - key: TIDAL_CLIENT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+

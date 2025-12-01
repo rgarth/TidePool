@@ -109,6 +109,36 @@ export function SessionPage() {
     }
   }, [sessionState?.tidalPlaylistId, sessionId]);
 
+  // Delete track from playlist
+  const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
+  
+  const handleDeleteTrack = useCallback(async (trackId: string) => {
+    if (!sessionState?.tidalPlaylistId) return;
+    
+    setDeletingTrackId(trackId);
+    try {
+      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          trackIds: [trackId],
+          sessionId: sessionId?.toUpperCase(),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete track');
+      }
+      
+      console.log('Track deleted');
+    } catch (err) {
+      console.error('Failed to delete track:', err);
+    } finally {
+      setDeletingTrackId(null);
+    }
+  }, [sessionState?.tidalPlaylistId, sessionId]);
+
   // Random playlist name generator
   const ADJECTIVES = [
     'Midnight', 'Summer', 'Chill', 'Epic', 'Groovy', 'Smooth', 'Cosmic', 
@@ -441,7 +471,7 @@ export function SessionPage() {
                   <input
                     type="text"
                     className="input"
-                    placeholder="Name (or leave for random ✨)"
+                    placeholder="Name (or leave for random)"
                     value={newPlaylistName}
                     onChange={(e) => setNewPlaylistName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleCreateNewPlaylist()}
@@ -826,6 +856,41 @@ export function SessionPage() {
                       <span className="text-muted" style={{ fontSize: '0.875rem' }}>
                         {formatDuration(track.duration)}
                       </span>
+                      {sessionState.isHost && (
+                        <button
+                          onClick={() => handleDeleteTrack(track.id)}
+                          disabled={deletingTrackId === track.id}
+                          title="Remove from playlist"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '8px',
+                            cursor: deletingTrackId === track.id ? 'wait' : 'pointer',
+                            color: 'var(--text-muted)',
+                            opacity: deletingTrackId === track.id ? 0.5 : 1,
+                            transition: 'color 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#ff6b6b'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          {deletingTrackId === track.id ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                            </motion.div>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                     </motion.div>
                   ))}
                 </div>

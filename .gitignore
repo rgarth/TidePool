@@ -10,6 +10,10 @@ build/
 .env.local
 .env.*.local
 
+# Token storage (NEVER commit!)
+.tokens.json
+server/.tokens.json
+
 # IDE
 .vscode/
 .idea/

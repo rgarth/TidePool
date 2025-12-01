@@ -302,6 +302,70 @@ async function addTracksToPlaylist(accessToken: string, playlistId: string, trac
   }
 }
 
+async function removeTracksFromPlaylist(accessToken: string, playlistId: string, trackIds: string[]): Promise<any> {
+  // First, get the playlist items to find the itemId for each track
+  const itemsUrl = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
+  
+  console.log(`>>> Getting playlist items to find track positions for deletion`);
+  
+  const itemsResponse = await fetch(itemsUrl, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/vnd.api+json',
+    },
+  });
+  
+  if (!itemsResponse.ok) {
+    const error = await itemsResponse.text();
+    console.error(`>>> Get items error (${itemsResponse.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to get playlist items: ${itemsResponse.status}`);
+  }
+  
+  const itemsData = await itemsResponse.json();
+  const items = itemsData.data || [];
+  
+  // Find the items that match our trackIds and get their meta.itemId
+  const itemsToDelete = items
+    .filter((item: any) => trackIds.includes(item.id))
+    .map((item: any) => ({
+      type: 'tracks',
+      id: item.id,
+      meta: {
+        itemId: item.meta?.itemId,
+      },
+    }));
+  
+  if (itemsToDelete.length === 0) {
+    console.log(`>>> No matching tracks found to delete`);
+    return { success: true };
+  }
+  
+  console.log(`>>> Removing ${itemsToDelete.length} tracks from playlist ${playlistId}`);
+  console.log(`>>> Items to delete:`, JSON.stringify(itemsToDelete));
+  
+  const response = await fetch(itemsUrl, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: itemsToDelete,
+    }),
+  });
+
+  console.log(`>>> Remove tracks response status: ${response.status}`);
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Remove tracks error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to remove tracks: ${response.status} - ${error.substring(0, 200)}`);
+  }
+
+  return { success: true };
+}
+
 // Get playlist track IDs
 async function getPlaylistTrackIds(accessToken: string, playlistId: string): Promise<string[]> {
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
@@ -732,56 +796,6 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// Debug endpoint to test Tidal API directly
-app.get('/api/debug/tidal-test', async (req, res) => {
-  const hostToken = req.cookies.tidepool_host;
-  const tokens = hostToken ? hostTokens.get(hostToken) : null;
-  
-  if (!tokens) {
-    return res.json({ error: 'Not authenticated' });
-  }
-  
-  const albumId = (req.query.albumId as string) || '573341'; // Weezer green album
-  const countryCode = tokens.countryCode || 'US';
-  
-  // Test album endpoint with coverArt
-  const urls = [
-    `https://openapi.tidal.com/v2/albums/${albumId}?countryCode=${countryCode}&include=coverArt`,
-    `https://openapi.tidal.com/v2/albums/${albumId}/relationships/coverArt?countryCode=${countryCode}`,
-  ];
-  
-  const results: any[] = [];
-  
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${tokens.accessToken}`,
-          'Accept': 'application/vnd.api+json',
-        },
-      });
-      
-      const text = await response.text();
-      results.push({
-        url,
-        status: response.status,
-        body: text.substring(0, 3000),
-      });
-    } catch (e: any) {
-      results.push({
-        url,
-        error: e.message,
-      });
-    }
-  }
-  
-  res.json({
-    token: tokens.accessToken.substring(0, 30) + '...',
-    countryCode,
-    results,
-  });
-});
-
 // ============================================
 // REST API Routes
 // ============================================
@@ -1057,6 +1071,47 @@ app.post('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   }
 });
 
+// Remove tracks from a playlist
+app.delete('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
+  const { playlistId } = req.params;
+  const { trackIds, sessionId } = req.body;
+  
+  const hostToken = req.cookies.tidepool_host;
+  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  if (!trackIds || !Array.isArray(trackIds) || trackIds.length === 0) {
+    return res.status(400).json({ error: 'trackIds array is required' });
+  }
+  
+  try {
+    // 1. Remove from Tidal
+    await removeTracksFromPlaylist(auth.token, playlistId, trackIds);
+    console.log(`Removed ${trackIds.length} tracks from playlist ${playlistId}`);
+    
+    // 2. Fetch the REAL playlist from Tidal (source of truth)
+    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
+    
+    // 3. If sessionId provided, broadcast to all clients in that session
+    if (sessionId) {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        session.tracks = tracks;
+        io.to(session.id).emit('playlist_synced', { tracks });
+        console.log(`Broadcasted ${tracks.length} tracks to session ${sessionId}`);
+      }
+    }
+    
+    res.json({ success: true, removed: trackIds.length, tracks });
+  } catch (error: any) {
+    console.error('>>> Remove tracks error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get tracks from a specific playlist
 app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   const { playlistId } = req.params;
@@ -1222,7 +1277,7 @@ io.on('connection', (socket) => {
           if (session.participants.size === 0) {
             // Check if there's pending auth for this session
             const hasPendingAuth = Array.from(pendingAuth.values()).some(
-              p => p.sessionId.toUpperCase() === currentSessionId.toUpperCase()
+              p => p.sessionId.toUpperCase() === currentSessionId!.toUpperCase()
             );
             
             // Clear hostId so they can rejoin as host
