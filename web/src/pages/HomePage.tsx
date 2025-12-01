@@ -44,7 +44,7 @@ export function HomePage() {
               Tide<span style={{ color: '#00b4d8' }}>Pool</span>
             </h1>
             <p className="text-secondary" style={{ fontSize: '1.125rem' }}>
-              Road trips, together. Everyone picks the music.
+              Collaborative playlists for road trips
             </p>
           </div>
         </motion.div>
@@ -58,9 +58,10 @@ export function HomePage() {
         >
           <Link to="/host" className="btn btn-primary" style={{ padding: 'var(--space-lg) var(--space-xl)' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="10 8 16 12 10 16 10 8" />
             </svg>
-            Start a Pool
+            Host Playlist
           </Link>
           
           <Link to="/join" className="btn btn-secondary" style={{ padding: 'var(--space-lg) var(--space-xl)' }}>
@@ -69,7 +70,7 @@ export function HomePage() {
               <polyline points="10 17 15 12 10 7" />
               <line x1="15" y1="12" x2="3" y2="12" />
             </svg>
-            Join a Pool
+            Join Playlist
           </Link>
         </motion.div>
 
@@ -85,10 +86,10 @@ export function HomePage() {
               How it works
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', textAlign: 'left' }}>
-              <Step number={1} text="Driver starts a pool and connects to car stereo" />
-              <Step number={2} text="Passengers join with a 6-letter code" />
-              <Step number={3} text="Everyone searches and adds songs to the pool" />
-              <Step number={4} text="Music plays through the driver's phone" />
+              <Step number={1} text="Host connects their Tidal account" />
+              <Step number={2} text="Host creates or selects a playlist to share" />
+              <Step number={3} text="Friends join with the code and add songs" />
+              <Step number={4} text="Host plays the playlist in Tidal" />
             </div>
           </div>
         </motion.div>
@@ -101,7 +102,7 @@ export function HomePage() {
           className="text-muted"
           style={{ marginTop: 'var(--space-2xl)', fontSize: '0.875rem' }}
         >
-          Powered by Tidal • No more "pass the aux"
+          Powered by Tidal • Build playlists together
         </motion.p>
       </div>
     </div>
@@ -133,4 +134,3 @@ function Step({ number, text }: { number: number; text: string }) {
     </div>
   );
 }
-

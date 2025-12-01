@@ -44,7 +44,7 @@ export function JoinPage() {
       // Navigate to the session
       navigate(`/session/${sessionCode}`);
     } catch (err) {
-      setError('Session not found. Check the code and try again.');
+      setError('Playlist not found. Check the code and try again.');
       setIsJoining(false);
     }
   };
@@ -84,7 +84,7 @@ export function JoinPage() {
                   height: '64px',
                   margin: '0 auto var(--space-lg)',
                   borderRadius: '16px',
-                  background: 'linear-gradient(135deg, var(--accent-amber) 0%, var(--accent-magenta) 100%)',
+                  background: 'var(--gradient-glow)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -97,9 +97,9 @@ export function JoinPage() {
                 </svg>
               </div>
               
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Join a Pool</h2>
+              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Join Playlist</h2>
               <p className="text-secondary">
-                Enter the 6-letter code to dive in and start adding songs
+                Enter the 6-letter code to start adding songs
               </p>
             </div>
 
@@ -137,7 +137,7 @@ export function JoinPage() {
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  Session Code
+                  Playlist Code
                 </label>
                 <input
                   id="code"
@@ -204,7 +204,7 @@ export function JoinPage() {
                       <polyline points="10 17 15 12 10 7" />
                       <line x1="15" y1="12" x2="3" y2="12" />
                     </svg>
-                    Dive In
+                    Join
                   </>
                 )}
               </button>
@@ -215,4 +215,3 @@ export function JoinPage() {
     </div>
   );
 }
-
