@@ -9,11 +9,6 @@ export function HostPage() {
   const [error, setError] = useState('');
 
   const handleCreateSession = async () => {
-    if (!name.trim()) {
-      setError('Give your pool a name');
-      return;
-    }
-
     setIsCreating(true);
     setError('');
 
@@ -21,7 +16,7 @@ export function HostPage() {
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostName: name.trim() }),
+        body: JSON.stringify({ hostName: name.trim() || '' }), // Empty = random name
       });
 
       if (!response.ok) {
@@ -30,8 +25,8 @@ export function HostPage() {
 
       const data = await response.json();
       
-      // Store host info in sessionStorage
-      sessionStorage.setItem('userName', name.trim());
+      // Store host info in sessionStorage (use session name if no user name provided)
+      sessionStorage.setItem('userName', name.trim() || data.name);
       sessionStorage.setItem('isHost', 'true');
       
       // Navigate to the session
@@ -101,7 +96,7 @@ export function HostPage() {
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  Name this pool
+                  Name this pool <span style={{ opacity: 0.6 }}>(optional)</span>
                 </label>
                 <input
                   id="name"
@@ -114,7 +109,7 @@ export function HostPage() {
                   autoFocus
                 />
                 <p className="text-muted" style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem' }}>
-                  Trip name, destination, or your name
+                  Leave blank for a random fun name ✨
                 </p>
               </div>
 
