@@ -86,6 +86,32 @@ npm run dev
 
 Open http://localhost:5173
 
+## Deployment
+
+### Backend (Render)
+
+1. Create a new **Web Service** on [Render](https://render.com)
+2. Connect your GitHub repo
+3. Configure:
+   - **Root Directory**: `server`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+4. Add environment variables:
+   - `TIDAL_CLIENT_ID`
+   - `TIDAL_CLIENT_SECRET`
+   - `FRONTEND_URL` (your Vercel URL, e.g., `https://tidepool.vercel.app`)
+   - `NODE_ENV=production`
+5. Update Tidal Developer Portal with your Render callback URL:
+   - `https://your-app.onrender.com/api/auth/callback`
+
+### Frontend (Vercel)
+
+1. Import your repo on [Vercel](https://vercel.com)
+2. Set **Root Directory** to `web`
+3. Add environment variable:
+   - `VITE_API_URL` = your Render backend URL (e.g., `https://your-app.onrender.com`)
+4. Deploy!
+
 ## Project Structure
 
 ```

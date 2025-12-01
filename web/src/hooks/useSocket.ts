@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { SessionState, Track } from '../types';
+import { WS_URL } from '../config';
 
 interface UseSocketReturn {
   isConnected: boolean;
@@ -19,7 +20,7 @@ export function useSocket(): UseSocketReturn {
 
   useEffect(() => {
     // Connect to WebSocket server
-    const socket = io({
+    const socket = io(WS_URL, {
       transports: ['websocket', 'polling'],
     });
 

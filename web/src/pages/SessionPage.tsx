@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
+import { API_URL } from '../config';
 import type { SearchResult } from '../types';
 
 export function SessionPage() {
@@ -61,7 +62,7 @@ export function SessionPage() {
   // Check authentication status
   const checkAuthStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/status', {
+      const response = await fetch(`${API_URL}/api/auth/status`, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -92,7 +93,7 @@ export function SessionPage() {
     setIsRefreshing(true);
     try {
       // Call the server to fetch from Tidal and broadcast to all clients
-      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/refresh?sessionId=${sessionId}`, {
+      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/refresh?sessionId=${sessionId}`, {
         credentials: 'include',
       });
       
@@ -117,7 +118,7 @@ export function SessionPage() {
     
     setDeletingTrackId(trackId);
     try {
-      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
+      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -163,7 +164,7 @@ export function SessionPage() {
     
     setIsCreatingPlaylist(true);
     try {
-      const response = await fetch('/api/tidal/playlists', {
+      const response = await fetch(`${API_URL}/api/tidal/playlists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -224,7 +225,7 @@ export function SessionPage() {
     
     try {
       // Verify the playlist exists by fetching its tracks
-      const response = await fetch(`/api/tidal/playlists/${cleanId}/tracks`, {
+      const response = await fetch(`${API_URL}/api/tidal/playlists/${cleanId}/tracks`, {
         credentials: 'include',
       });
       
@@ -244,7 +245,7 @@ export function SessionPage() {
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
       setTimeout(() => {
-        fetch(`/api/tidal/playlists/${playlistIdForRefresh}/refresh?sessionId=${sessionId}`, {
+        fetch(`${API_URL}/api/tidal/playlists/${playlistIdForRefresh}/refresh?sessionId=${sessionId}`, {
           credentials: 'include',
         });
       }, 500);
@@ -288,7 +289,7 @@ export function SessionPage() {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}`, {
+        const response = await fetch(`${API_URL}/api/tidal/search?query=${encodeURIComponent(searchQuery)}`, {
           credentials: 'include',
         });
         const data = await response.json();
@@ -326,7 +327,7 @@ export function SessionPage() {
     
     try {
       // POST to Tidal - server will fetch real playlist and broadcast to ALL clients
-      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
+      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { API_URL } from '../config';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export function HostPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/status', {
+        const response = await fetch(`${API_URL}/api/auth/status`, {
           credentials: 'include',
         });
         const data = await response.json();
@@ -28,7 +29,7 @@ export function HostPage() {
   const handleLoginAndCreate = async (forceReauth = false) => {
     // Create session first, then redirect to Tidal login
     try {
-      const response = await fetch('/api/sessions', {
+      const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostName: '' }), // Will get random name

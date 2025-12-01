@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { API_URL } from '../config';
 
 export function JoinPage() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export function JoinPage() {
 
     try {
       // Verify the session exists
-      const response = await fetch(`/api/sessions/${sessionCode}`);
+      const response = await fetch(`${API_URL}/api/sessions/${sessionCode}`);
       
       if (!response.ok) {
         throw new Error('Session not found');
