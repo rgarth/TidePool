@@ -3,8 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
-import { useAudioPlayer } from '../hooks/useAudioPlayer';
-import type { SearchResult, Track, Playlist } from '../types';
+import type { SearchResult } from '../types';
 
 export function SessionPage() {
   const { sessionId } = useParams();
@@ -15,52 +14,60 @@ export function SessionPage() {
     sessionState,
     error,
     joinSession,
-    addToQueue,
-    removeFromQueue,
-    playbackControl,
+    setPlaylist,
   } = useSocket();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [activeTab, setActiveTab] = useState<'queue' | 'participants'>('queue');
+  const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Audio player for actual playback
-  const audioPlayer = useAudioPlayer();
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
   
-  // Playlists state
-  const [showPlaylists, setShowPlaylists] = useState(false);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
-  const [playlistTracks, setPlaylistTracks] = useState<SearchResult[]>([]);
-  const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  // Playlist creation state (for host)
+  const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [existingPlaylistId, setExistingPlaylistId] = useState('');
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+  const [existingPlaylistError, setExistingPlaylistError] = useState('');
+  
+  // Check for last used playlist ID
+  const [lastPlaylistId, setLastPlaylistId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const saved = localStorage.getItem('tidepool_last_playlist');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setLastPlaylistId(data.id);
+      } catch {}
+    }
+  }, []);
 
   // Share modal state
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   
+  // Track adding state
+  const [addingTrackId, setAddingTrackId] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  
   // Check if just returned from auth
   const authSuccess = searchParams.get('auth') === 'success';
   
-  // Check authentication status (uses cookie, not session)
+  // Check authentication status
   const checkAuthStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/status', {
-        credentials: 'include', // Send cookies
+        credentials: 'include',
       });
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
-      setAuthChecked(true);
     } catch (err) {
       console.error('Failed to check auth status:', err);
-      setAuthChecked(true);
     }
   }, []);
   
@@ -68,53 +75,155 @@ export function SessionPage() {
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus, authSuccess]);
-  
-  // Track last attempted playback to avoid retry loops on error
-  const lastPlayAttemptRef = useRef<{ trackId: string; timestamp: number } | null>(null);
-  
-  // Handle actual audio playback based on session state
+
+  // Show playlist picker for host if no playlist linked yet
   useEffect(() => {
-    if (!sessionState?.isHost) return; // Only host plays audio
+    if (sessionState?.isHost && isAuthenticated && !sessionState.tidalPlaylistId) {
+      setShowPlaylistPicker(true);
+    }
+  }, [sessionState?.isHost, isAuthenticated, sessionState?.tidalPlaylistId]);
+
+  // Refresh playlist from Tidal (source of truth)
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const refreshPlaylistFromTidal = useCallback(async () => {
+    if (!sessionState?.tidalPlaylistId) return;
     
-    const currentTrack = sessionState.queue[sessionState.currentTrackIndex];
-    if (!currentTrack?.tidalId) return;
-    
-    if (sessionState.isPlaying) {
-      // Play the current track
-      if (audioPlayer.currentTrackId !== currentTrack.tidalId) {
-        // Check if we just tried this track and it failed (prevent retry loop)
-        const lastAttempt = lastPlayAttemptRef.current;
-        const now = Date.now();
-        if (lastAttempt?.trackId === currentTrack.tidalId && now - lastAttempt.timestamp < 5000) {
-          // Don't retry for 5 seconds after a failure
-          return;
-        }
-        
-        lastPlayAttemptRef.current = { trackId: currentTrack.tidalId, timestamp: now };
-        audioPlayer.playTrack(currentTrack.tidalId);
-      } else if (!audioPlayer.isPlaying && !audioPlayer.isLoading && !audioPlayer.error) {
-        audioPlayer.resume();
+    setIsRefreshing(true);
+    try {
+      // Call the server to fetch from Tidal and broadcast to all clients
+      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/refresh?sessionId=${sessionId}`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh');
       }
+      
+      // Server will broadcast 'playlist_synced' to all clients
+      console.log('Refresh requested');
+    } catch (err) {
+      console.error('Failed to refresh playlist:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [sessionState?.tidalPlaylistId, sessionId]);
+
+  // Random playlist name generator
+  const ADJECTIVES = [
+    'Midnight', 'Summer', 'Chill', 'Epic', 'Groovy', 'Smooth', 'Cosmic', 
+    'Electric', 'Golden', 'Sunset', 'Highway', 'Road Trip', 'Late Night',
+    'Weekend', 'Sunday', 'Throwback', 'Fresh', 'Good Times', 'Cruising'
+  ];
+  const NOUNS = [
+    'Bangers', 'Jams', 'Beats', 'Vibes', 'Tunes', 'Tracks', 'Hits', 
+    'Grooves', 'Sounds', 'Mix', 'Playlist', 'Session', 'Party', 'Drive',
+    'Journey', 'Waves', 'Flow', 'Mood', 'Energy', 'Magic'
+  ];
+  
+  const generateRandomName = () => {
+    const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+    return `${adj} ${noun}`;
+  };
+
+  // Create new playlist and link to session
+  const handleCreateNewPlaylist = async () => {
+    const playlistName = newPlaylistName.trim() || generateRandomName();
+    
+    setIsCreatingPlaylist(true);
+    try {
+      const response = await fetch('/api/tidal/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: playlistName,
+          description: 'Created with TidePool',
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to create playlist');
+      
+      const data = await response.json();
+      setPlaylist(data.id, data.listenUrl);
+      setShowPlaylistPicker(false);
+      
+      // Save as last used playlist
+      localStorage.setItem('tidepool_last_playlist', JSON.stringify({ 
+        id: data.id, 
+        name: playlistName,
+        createdAt: new Date().toISOString(),
+      }));
+    } catch (err) {
+      console.error('Failed to create playlist:', err);
+    } finally {
+      setIsCreatingPlaylist(false);
+    }
+  };
+
+  // Use an existing playlist by ID
+  const handleUseExistingPlaylist = async (playlistIdToUse?: string) => {
+    const idToUse = (playlistIdToUse || existingPlaylistId).trim();
+    
+    // Extract playlist ID from URL if pasted
+    // Handles: tidal.com/playlist/UUID, listen.tidal.com/playlist/UUID, or just UUID
+    let cleanId = idToUse;
+    
+    // Try to extract UUID from URL
+    const urlMatch = idToUse.match(/playlist\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (urlMatch) {
+      cleanId = urlMatch[1];
     } else {
-      // Pause
-      if (audioPlayer.isPlaying) {
-        audioPlayer.pause();
+      // Check if the input itself is a valid UUID
+      const uuidMatch = idToUse.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+      if (uuidMatch) {
+        cleanId = uuidMatch[1];
       }
     }
-  // Only re-run when these specific values change, not the whole audioPlayer object
-  }, [sessionState?.isPlaying, sessionState?.currentTrackIndex, sessionState?.queue, sessionState?.isHost, audioPlayer.currentTrackId, audioPlayer.isPlaying, audioPlayer.isLoading, audioPlayer.error]);
-  
-  // Auto-advance when track ends
-  useEffect(() => {
-    if (!sessionState?.isHost) return;
     
-    const cleanup = audioPlayer.onTrackEnded(() => {
-      console.log('Track ended, advancing to next');
-      playbackControl('next');
-    });
+    if (!cleanId || cleanId.length !== 36) {
+      setExistingPlaylistError('Please enter a valid playlist ID (UUID format) or Tidal URL');
+      return;
+    }
     
-    return cleanup;
-  }, [audioPlayer, playbackControl, sessionState?.isHost]);
+    console.log('Loading playlist:', cleanId);
+    
+    setIsLoadingExisting(true);
+    setExistingPlaylistError('');
+    
+    try {
+      // Verify the playlist exists by fetching its tracks
+      const response = await fetch(`/api/tidal/playlists/${cleanId}/tracks`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Playlist not found or not accessible');
+      }
+      
+      // Playlist exists! Link it to the session
+      const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
+      setPlaylist(cleanId, listenUrl);
+      setShowPlaylistPicker(false);
+      setExistingPlaylistId(''); // Clear input
+      
+      // Save as last used
+      localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId }));
+      
+      // Trigger a refresh to sync tracks to all clients
+      const playlistIdForRefresh = cleanId; // Capture in closure
+      setTimeout(() => {
+        fetch(`/api/tidal/playlists/${playlistIdForRefresh}/refresh?sessionId=${sessionId}`, {
+          credentials: 'include',
+        });
+      }, 500);
+    } catch (err: any) {
+      setExistingPlaylistError(err.message || 'Failed to load playlist');
+    } finally {
+      setIsLoadingExisting(false);
+    }
+  };
 
   // Join session on mount
   useEffect(() => {
@@ -129,7 +238,6 @@ export function SessionPage() {
   useEffect(() => {
     if (error) {
       console.error('Socket error:', error);
-      // Redirect to home if session not found
       if (error.includes('not found')) {
         navigate('/', { replace: true });
       }
@@ -151,212 +259,112 @@ export function SessionPage() {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         const response = await fetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}`, {
-          credentials: 'include', // Send cookies for auth
+          credentials: 'include',
         });
         const data = await response.json();
-        setSearchResults(data.tracks || []);
         
-        // Check if auth is required for real results
-        if (data.authRequired && sessionState?.isHost) {
-          console.log('Auth required for real Tidal search results');
+        if (data.authRequired) {
+          setSearchResults([]);
+          return;
         }
+        
+        setSearchResults(data.tracks || []);
       } catch (err) {
-        console.error('Search error:', err);
+        console.error('Search failed:', err);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
     }, 300);
+  }, [searchQuery]);
 
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery, sessionState?.isHost]);
-
-  const handleAddTrack = (track: SearchResult, position: 'end' | 'next') => {
-    addToQueue(track, position);
+  // Clear search
+  const clearSearch = () => {
     setSearchQuery('');
     setSearchResults([]);
-    setShowSearch(false);
   };
 
-  const handleOpenPlaylists = async () => {
-    setShowPlaylists(true);
-    setIsLoadingPlaylists(true);
-    try {
-      const response = await fetch('/api/tidal/playlists', {
-        credentials: 'include', // Send cookies for auth
-      });
-      const data = await response.json();
-      setPlaylists(data.playlists || []);
-    } catch (err) {
-      console.error('Failed to load playlists:', err);
-    } finally {
-      setIsLoadingPlaylists(false);
+  // Add track to playlist - POST to Tidal, server broadcasts real playlist to everyone
+  const handleAddTrack = async (track: SearchResult) => {
+    if (!sessionState?.tidalPlaylistId) {
+      setAddError('No playlist selected');
+      return;
     }
-  };
-
-  const handleSelectPlaylist = async (playlist: Playlist) => {
-    setSelectedPlaylist(playlist);
-    setIsLoadingTracks(true);
+    
+    setAddingTrackId(track.id);
+    setAddError(null);
+    
     try {
-      const response = await fetch(`/api/tidal/playlists/${playlist.id}/tracks`, {
-        credentials: 'include', // Send cookies for auth
-      });
-      const data = await response.json();
-      setPlaylistTracks(data.tracks || []);
-    } catch (err) {
-      console.error('Failed to load playlist tracks:', err);
-    } finally {
-      setIsLoadingTracks(false);
-    }
-  };
-  
-  // Handle Tidal login
-  const handleTidalLogin = () => {
-    window.location.href = `/api/auth/login?sessionId=${sessionId}`;
-  };
-  
-  // Handle Tidal logout (for re-authenticating with new scopes)
-  const handleTidalLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
+      // POST to Tidal - server will fetch real playlist and broadcast to ALL clients
+      const response = await fetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ 
+          trackIds: [track.tidalId],
+          sessionId: sessionId, // So server knows which room to broadcast to
+        }),
       });
-      setIsAuthenticated(false);
-      // Clear error state so user can try again
-      if (audioPlayer.error) {
-        lastPlayAttemptRef.current = null;
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to add track (${response.status})`);
       }
-    } catch (err) {
-      console.error('Logout failed:', err);
+      
+      // Success! Server will broadcast 'playlist_synced' to ALL clients
+      // No local state update needed - everyone gets the real Tidal playlist
+      clearSearch();
+    } catch (err: any) {
+      console.error('Failed to add to Tidal playlist:', err);
+      setAddError(err.message || 'Failed to add track');
+      // Clear error after 3 seconds
+      setTimeout(() => setAddError(null), 3000);
+    } finally {
+      setAddingTrackId(null);
     }
-  };
-
-  const handleAddPlaylistTrack = (track: SearchResult, position: 'end' | 'next') => {
-    addToQueue(track, position);
-  };
-
-  const handleAddAllTracks = () => {
-    playlistTracks.forEach((track) => {
-      addToQueue(track, 'end');
-    });
-    setShowPlaylists(false);
-    setSelectedPlaylist(null);
-    setPlaylistTracks([]);
-  };
-
-  const handleClosePlaylists = () => {
-    setShowPlaylists(false);
-    setSelectedPlaylist(null);
-    setPlaylistTracks([]);
   };
 
   // Share functionality
-  const shareUrl = `${window.location.origin}/join/${sessionId}`;
-  const shareText = `Join my music session! Code: ${sessionId}`;
-
-  const handleNativeShare = async () => {
+  const handleShare = async () => {
+    const joinUrl = `${window.location.origin}/join/${sessionId}`;
+    
     if (navigator.share) {
       try {
         await navigator.share({
-          title: sessionState?.name || 'Join my music session',
-          text: shareText,
-          url: shareUrl,
+          title: `Join ${sessionState?.name || 'playlist'}`,
+          text: 'Add songs to our collaborative playlist!',
+          url: joinUrl,
         });
       } catch (err) {
-        // User cancelled or error
-        console.log('Share cancelled or failed');
+        // User cancelled
       }
     } else {
-      // Fallback to copy
-      handleCopyLink();
+      setShowShare(true);
     }
   };
 
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+  const copyJoinUrl = async () => {
+    const joinUrl = `${window.location.origin}/join/${sessionId}`;
+    await navigator.clipboard.writeText(joinUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Open playlist in Tidal
+  const openInTidal = () => {
+    if (sessionState?.tidalPlaylistUrl) {
+      window.open(sessionState.tidalPlaylistUrl, '_blank');
     }
   };
 
-  const handleCopyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(sessionId || '');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
+  // Format duration
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const currentTrack = sessionState?.queue[sessionState.currentTrackIndex];
-
-  if (!isConnected) {
-    return (
-      <div className="page page-centered">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          style={{
-            width: '40px',
-            height: '40px',
-            border: '3px solid var(--bg-elevated)',
-            borderTopColor: 'var(--accent-cyan)',
-            borderRadius: '50%',
-          }}
-        />
-        <p className="text-secondary mt-md">Connecting...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="page page-centered">
-        <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: '80px',
-              height: '80px',
-              margin: '0 auto var(--space-lg)',
-              borderRadius: '50%',
-              background: 'var(--bg-elevated)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-amber)' }}>
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </div>
-          <h2 style={{ marginBottom: 'var(--space-sm)' }}>Session Not Found</h2>
-          <p className="text-secondary" style={{ marginBottom: 'var(--space-xl)' }}>
-            This session may have expired or the code is incorrect.
-          </p>
-          <button onClick={() => navigate('/')} className="btn btn-primary">
-            Go Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // Loading state
   if (!sessionState) {
     return (
       <div className="page page-centered">
@@ -371,409 +379,495 @@ export function SessionPage() {
             borderRadius: '50%',
           }}
         />
-        <p className="text-secondary" style={{ marginTop: 'var(--space-md)' }}>Loading session...</p>
+      </div>
+    );
+  }
+
+  // Playlist picker for host (no playlist selected yet)
+  if (showPlaylistPicker && sessionState.isHost) {
+    return (
+      <div className="page page-centered">
+        <div className="container" style={{ maxWidth: '500px' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="card" style={{ padding: 'var(--space-xl)' }}>
+              {/* Playlist icon */}
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  margin: '0 auto var(--space-lg)',
+                  borderRadius: '16px',
+                  background: 'var(--gradient-glow)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--bg-primary)' }}>
+                  <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
+                </svg>
+              </div>
+              
+              <h2 style={{ marginBottom: 'var(--space-sm)', textAlign: 'center' }}>
+                Choose a Playlist
+              </h2>
+              <p className="text-secondary" style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>
+                Create new or continue editing an existing one
+              </p>
+              
+              {/* Resume last playlist */}
+              {lastPlaylistId && (
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <button
+                    onClick={() => handleUseExistingPlaylist(lastPlaylistId)}
+                    disabled={isLoadingExisting}
+                    className="btn btn-secondary"
+                    style={{ 
+                      width: '100%', 
+                      padding: 'var(--space-md)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 'var(--space-sm)',
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                    </svg>
+                    Resume Last Playlist
+                  </button>
+                  <p className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'center', marginTop: 'var(--space-xs)' }}>
+                    ID: {lastPlaylistId.substring(0, 8)}...
+                  </p>
+                </div>
+              )}
+              
+              {/* Create new playlist */}
+              <div style={{ marginBottom: 'var(--space-lg)' }}>
+                <label className="text-secondary" style={{ display: 'block', marginBottom: 'var(--space-sm)', fontSize: '0.875rem' }}>
+                  Create new playlist
+                </label>
+                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Name (or leave for random ✨)"
+                    value={newPlaylistName}
+                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewPlaylist()}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    onClick={handleCreateNewPlaylist}
+                    disabled={isCreatingPlaylist}
+                    className="btn btn-primary"
+                  >
+                    {isCreatingPlaylist ? '...' : 'Create'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Divider */}
+              <div style={{ position: 'relative', textAlign: 'center', margin: 'var(--space-lg) 0' }}>
+                <div style={{ 
+                  position: 'absolute', 
+                  left: 0, 
+                  right: 0, 
+                  top: '50%', 
+                  height: '1px', 
+                  background: 'var(--bg-elevated)' 
+                }} />
+                <span style={{ 
+                  position: 'relative', 
+                  background: 'var(--bg-card)', 
+                  padding: '0 var(--space-md)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.875rem',
+                }}>
+                  or edit existing
+                </span>
+              </div>
+              
+              {/* Use existing playlist */}
+              <div>
+                <label className="text-secondary" style={{ display: 'block', marginBottom: 'var(--space-sm)', fontSize: '0.875rem' }}>
+                  Paste playlist ID or URL from Tidal
+                </label>
+                <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g., abc123-def456 or tidal.com/playlist/..."
+                    value={existingPlaylistId}
+                    onChange={(e) => {
+                      setExistingPlaylistId(e.target.value);
+                      setExistingPlaylistError('');
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUseExistingPlaylist()}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    onClick={() => handleUseExistingPlaylist()}
+                    disabled={isLoadingExisting || !existingPlaylistId.trim()}
+                    className="btn btn-secondary"
+                  >
+                    {isLoadingExisting ? '...' : 'Load'}
+                  </button>
+                </div>
+                {existingPlaylistError && (
+                  <p style={{ color: '#ff6b6b', fontSize: '0.8rem', marginTop: 'var(--space-sm)' }}>
+                    {existingPlaylistError}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            {/* Share code hint */}
+            <p className="text-muted" style={{ marginTop: 'var(--space-lg)', textAlign: 'center', fontSize: '0.875rem' }}>
+              Session code: <code style={{ color: 'var(--accent-cyan)' }}>{sessionId}</code>
+            </p>
+          </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="page" style={{ paddingBottom: currentTrack ? '140px' : '0' }}>
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Header */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          background: 'linear-gradient(to bottom, var(--bg-primary) 0%, var(--bg-primary) 80%, transparent 100%)',
-          padding: 'var(--space-md) var(--space-lg)',
-          zIndex: 50,
-        }}
-      >
-        <div className="container">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>{sessionState.name}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                <span className="session-code" style={{ fontSize: '1rem', padding: 'var(--space-xs) var(--space-sm)', letterSpacing: '0.15em' }}>
+      <header className="container" style={{ paddingTop: 'var(--space-lg)', paddingBottom: 'var(--space-md)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{sessionState.name}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <button
+                onClick={copyJoinUrl}
+                className="text-muted"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <code style={{ 
+                  background: 'var(--bg-elevated)', 
+                  padding: '2px 8px', 
+                  borderRadius: 'var(--radius-sm)',
+                  letterSpacing: '0.1em',
+                }}>
                   {sessionId}
+                </code>
+                {copied ? '✓' : '📋'}
+              </button>
+              {sessionState.isHost && (
+                <span style={{
+                  padding: '4px 8px',
+                  background: 'var(--accent-cyan)',
+                  color: 'var(--bg-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                }}>
+                  HOST
                 </span>
-                {sessionState.isHost && (
-                  <span
-                    style={{
-                      padding: '4px 8px',
-                      background: 'var(--accent-amber)',
-                      color: 'var(--bg-primary)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.75rem',
-                      fontWeight: '600',
-                    }}
-                  >
-                    HOST
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-              {/* Tidal Login button (host only, when not authenticated) */}
-              {sessionState.isHost && authChecked && !isAuthenticated && (
-                <button
-                  onClick={handleTidalLogin}
-                  className="btn btn-sm"
-                  style={{
-                    background: 'linear-gradient(135deg, #00FFFF 0%, #00D4AA 100%)',
-                    color: 'var(--bg-primary)',
-                    fontWeight: '600',
-                  }}
-                  title="Connect your Tidal account for real search results"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '6px' }}>
-                    <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
-                  </svg>
-                  Login
-                </button>
               )}
-              
-              {/* Connected indicator - clickable to logout/re-auth */}
-              {sessionState.isHost && isAuthenticated && (
-                <button
-                  onClick={handleTidalLogout}
-                  className="btn btn-ghost btn-sm"
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '6px',
-                    padding: '6px 10px',
-                    background: audioPlayer.error?.includes('scope') 
-                      ? 'rgba(255, 100, 100, 0.15)' 
-                      : 'rgba(0, 255, 170, 0.15)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.75rem',
-                    color: audioPlayer.error?.includes('scope') 
-                      ? '#ff6b6b' 
-                      : 'var(--accent-green)',
-                  }}
-                  title={audioPlayer.error?.includes('scope') 
-                    ? 'Click to logout and re-login with updated permissions' 
-                    : 'Connected to Tidal - click to logout'}
-                >
-                  <div style={{ 
-                    width: '6px', 
-                    height: '6px', 
-                    borderRadius: '50%', 
-                    background: audioPlayer.error?.includes('scope') 
-                      ? '#ff6b6b' 
-                      : 'var(--accent-green)' 
-                  }} />
-                  {audioPlayer.error?.includes('scope') ? 'Re-login' : 'Tidal ✓'}
-                </button>
-              )}
-              
-              <button
-                onClick={() => setShowShare(true)}
-                className="btn btn-secondary btn-sm"
-                title="Share session"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                </svg>
-                Share
-              </button>
-              <button
-                onClick={() => navigate('/')}
-                className="btn btn-ghost btn-sm"
-              >
-                Leave
-              </button>
             </div>
           </div>
-
-          {/* Tab buttons */}
           <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-            <button
-              className={`btn btn-sm ${activeTab === 'queue' ? 'btn-secondary' : 'btn-ghost'}`}
-              onClick={() => setActiveTab('queue')}
-            >
-              Queue ({sessionState.queue.length})
+            {sessionState.isHost && (
+              <button 
+                onClick={() => setShowPlaylistPicker(true)}
+                className="btn btn-ghost btn-sm"
+                title="Switch playlist"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+              </button>
+            )}
+            <button onClick={handleShare} className="btn btn-secondary btn-sm">
+              Invite
             </button>
-            <button
-              className={`btn btn-sm ${activeTab === 'participants' ? 'btn-secondary' : 'btn-ghost'}`}
-              onClick={() => setActiveTab('participants')}
+            <button 
+              onClick={() => navigate('/')}
+              className="btn btn-ghost btn-sm"
+              title="Exit session"
             >
-              People ({sessionState.participants.length})
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
             </button>
           </div>
+        </div>
+
+        {/* Search input */}
+        <div style={{ position: 'relative', zIndex: 15 }}>
+          <input
+            type="text"
+            className="input"
+            placeholder="Search for songs to add..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={!isAuthenticated && !sessionState.isHost}
+            style={{
+              width: '100%',
+              paddingLeft: '44px',
+              paddingRight: searchQuery ? '44px' : undefined,
+            }}
+          />
+          <svg
+            width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              style={{
+                position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)', borderBottom: '1px solid rgba(255,255,255,0.1)', alignItems: 'center' }}>
+          <button
+            onClick={() => setActiveTab('playlist')}
+            style={{
+              background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
+              color: activeTab === 'playlist' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'playlist' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+              cursor: 'pointer', fontWeight: '500',
+            }}
+          >
+            Playlist ({sessionState.tracks.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('participants')}
+            style={{
+              background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
+              color: activeTab === 'participants' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'participants' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+              cursor: 'pointer', fontWeight: '500',
+            }}
+          >
+            People ({sessionState.participants.length})
+          </button>
+          
+          {/* Refresh button */}
+          {sessionState.tidalPlaylistId && (
+            <button
+              onClick={refreshPlaylistFromTidal}
+              disabled={isRefreshing}
+              title="Refresh from Tidal"
+              style={{
+                marginLeft: 'auto',
+                background: 'none',
+                border: 'none',
+                padding: 'var(--space-sm)',
+                color: 'var(--text-muted)',
+                cursor: isRefreshing ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                borderBottom: '2px solid transparent',
+              }}
+            >
+              <motion.div
+                animate={isRefreshing ? { rotate: 360 } : {}}
+                transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M16 16h5v5" />
+                </svg>
+              </motion.div>
+            </button>
+          )}
         </div>
       </header>
 
       {/* Main content */}
-      <main className="container" style={{ flex: 1 }}>
-        <AnimatePresence mode="wait">
-          {activeTab === 'queue' ? (
-            <motion.div
-              key="queue"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.2 }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
-            >
-              {/* Search input at top */}
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="Search for songs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    paddingLeft: '44px',
-                    paddingRight: searchQuery ? '44px' : undefined,
-                  }}
-                />
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    position: 'absolute',
-                    left: '14px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-muted)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      padding: '8px',
-                      cursor: 'pointer',
-                      color: 'var(--text-muted)',
-                    }}
+      <main className="container" style={{ flex: 1, overflow: 'auto', paddingBottom: '120px' }}>
+        {/* Search Results Overlay */}
+        {searchQuery.trim().length >= 2 && (
+          <>
+            <div onClick={clearSearch} style={{ position: 'fixed', inset: 0, zIndex: 5 }} />
+            <div style={{ position: 'relative', zIndex: 10, marginBottom: 'var(--space-lg)' }}>
+              {isSearching ? (
+                <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    style={{ display: 'inline-block' }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6 6 18M6 6l12 12" />
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Show search results when searching */}
-              {searchQuery.trim().length >= 2 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {isSearching ? (
-                    <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        style={{ display: 'inline-block', marginBottom: 'var(--space-sm)' }}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                        </svg>
-                      </motion.div>
-                      <div>Searching...</div>
-                    </div>
-                  ) : searchResults.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-                      No results found for "{searchQuery}"
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-muted" style={{ fontSize: '0.875rem', padding: '0 var(--space-xs)' }}>
-                        {searchResults.length} results
-                      </div>
-                      {searchResults.map((track) => (
-                        <SearchResultItem
-                          key={track.id}
-                          track={track}
-                          onAddToQueue={() =>
-                            addToQueue(
-                              {
-                                tidalId: track.tidalId,
-                                title: track.title,
-                                artist: track.artist,
-                                album: track.album,
-                                duration: track.duration,
-                                albumArt: track.albumArt,
-                              },
-                              'end'
-                            )
-                          }
-                          onPlayNext={() =>
-                            addToQueue(
-                              {
-                                tidalId: track.tidalId,
-                                title: track.title,
-                                artist: track.artist,
-                                album: track.album,
-                                duration: track.duration,
-                                albumArt: track.albumArt,
-                              },
-                              'next'
-                            )
-                          }
-                          formatDuration={formatDuration}
-                        />
-                      ))}
-                    </>
-                  )}
+                  </motion.div>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
+                  No results for "{searchQuery}"
                 </div>
               ) : (
-                /* Queue list when not searching */
-                sessionState.queue.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-                    <div
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                  {/* Error message */}
+                  {addError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
                       style={{
-                        width: '80px',
-                        height: '80px',
-                        margin: '0 auto var(--space-lg)',
-                        borderRadius: '50%',
-                        background: 'var(--bg-elevated)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        padding: 'var(--space-md)',
+                        background: 'rgba(255, 100, 100, 0.15)',
+                        border: '1px solid rgba(255, 100, 100, 0.3)',
+                        borderRadius: 'var(--radius-md)',
+                        color: '#ff6b6b',
+                        fontSize: '0.875rem',
+                        textAlign: 'center',
                       }}
                     >
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
-                        <path d="M9 18V5l12-2v13" />
-                        <circle cx="6" cy="18" r="3" />
-                        <circle cx="18" cy="16" r="3" />
-                      </svg>
-                    </div>
-                    <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                      Queue is empty
-                    </h3>
-                    <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
-                      Search for songs above to add them
-                    </p>
-                    
-                    {/* Prompt host to login if not authenticated */}
-                    {sessionState.isHost && authChecked && !isAuthenticated && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="card"
-                        style={{
-                          maxWidth: '400px',
-                          margin: '0 auto',
-                          padding: 'var(--space-lg)',
-                          borderColor: 'var(--accent-cyan)',
-                          background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.05) 0%, rgba(0, 212, 170, 0.05) 100%)',
-                        }}
-                      >
-                        <div style={{ marginBottom: 'var(--space-md)' }}>
-                          <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--space-xs)' }}>
-                            Connect Tidal
-                          </h4>
-                          <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-                            Login to search the real Tidal catalog and access your playlists
-                          </p>
-                        </div>
-                        <button
-                          onClick={handleTidalLogin}
-                          className="btn btn-primary"
-                          style={{ width: '100%' }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
-                            <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
-                          </svg>
-                          Login with Tidal
-                        </button>
-                      </motion.div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                    <div className="text-muted" style={{ fontSize: '0.875rem', padding: '0 var(--space-xs)' }}>
-                      {sessionState.queue.length} {sessionState.queue.length === 1 ? 'track' : 'tracks'} in queue
-                    </div>
-                    {sessionState.queue.map((track, index) => (
-                      <QueueItem
-                        key={track.id}
-                        track={track}
-                        index={index}
-                        isCurrent={index === sessionState.currentTrackIndex}
-                        isPlaying={sessionState.isPlaying && index === sessionState.currentTrackIndex}
-                        onPlay={() => playbackControl('jump', index)}
-                        onRemove={() => removeFromQueue(track.id)}
-                        formatDuration={formatDuration}
+                      ❌ {addError}
+                    </motion.div>
+                  )}
+                  {searchResults.map((track) => (
+                    <motion.div
+                      key={track.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="card"
+                      style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}
+                    >
+                      <img
+                        src={track.albumArt}
+                        alt={track.album}
+                        style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
                       />
-                    ))}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {track.title}
+                        </div>
+                        <div className="text-secondary" style={{ fontSize: '0.875rem' }}>
+                          {track.artist}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleAddTrack(track)} 
+                        className="btn btn-primary btn-sm"
+                        disabled={addingTrackId === track.id}
+                        style={{ minWidth: '60px' }}
+                      >
+                        {addingTrackId === track.id ? (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            style={{ width: '16px', height: '16px' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                            </svg>
+                          </motion.div>
+                        ) : 'Add'}
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'playlist' ? (
+            <motion.div key="playlist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {sessionState.tracks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
+                  <div style={{
+                    width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+                    borderRadius: '50%', background: 'var(--bg-elevated)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
+                    </svg>
                   </div>
-                )
+                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                    Playlist is empty
+                  </h3>
+                  <p className="text-muted">Search for songs above to add them</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                  {sessionState.tracks.map((track, index) => (
+                    <motion.div
+                      key={track.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="card"
+                      style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}
+                    >
+                      <span className="text-muted" style={{ width: '24px', textAlign: 'center', fontSize: '0.875rem' }}>
+                        {index + 1}
+                      </span>
+                      <img
+                        src={track.albumArt}
+                        alt={track.album}
+                        style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {track.title}
+                        </div>
+                        <div className="text-secondary" style={{ fontSize: '0.875rem' }}>
+                          {track.artist} • {track.addedBy}
+                        </div>
+                      </div>
+                      <span className="text-muted" style={{ fontSize: '0.875rem' }}>
+                        {formatDuration(track.duration)}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
               )}
             </motion.div>
           ) : (
-            <motion.div
-              key="participants"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div key="participants" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {sessionState.participants.map((name, index) => (
-                  <div
-                    key={index}
-                    className="card"
-                    style={{
-                      padding: 'var(--space-md)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-md)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        background: `hsl(${(index * 60) % 360}, 70%, 50%)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: '600',
-                        color: 'white',
-                      }}
-                    >
+                  <div key={index} className="card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      background: `hsl(${(name.charCodeAt(0) * 137) % 360}, 60%, 50%)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontWeight: '600',
+                    }}>
                       {name.charAt(0).toUpperCase()}
                     </div>
                     <span>{name}</span>
-                    {index === 0 && (
-                      <span
-                        style={{
-                          marginLeft: 'auto',
-                          padding: '4px 8px',
-                          background: 'var(--accent-amber)',
-                          color: 'var(--bg-primary)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.75rem',
-                          fontWeight: '600',
-                        }}
-                      >
-                        HOST
-                      </span>
-                    )}
                   </div>
                 ))}
               </div>
@@ -782,51 +876,25 @@ export function SessionPage() {
         </AnimatePresence>
       </main>
 
-      {/* FAB buttons */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: currentTrack ? '160px' : '24px',
-          right: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-md)',
-          zIndex: 40,
-        }}
-      >
-        {/* My Playlists FAB (host only) */}
-        {sessionState.isHost && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleOpenPlaylists}
-            style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '50%',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--accent-amber)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(255, 184, 0, 0.2)',
-            }}
-            title="My Playlists"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-amber)' }}>
-              <path d="M21 15V6" />
-              <path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-              <path d="M12 12H3" />
-              <path d="M16 6H3" />
-              <path d="M12 18H3" />
-            </svg>
-          </motion.button>
-        )}
+      {/* Bottom bar - Open in Tidal (host only) */}
+      {sessionState.isHost && sessionState.tidalPlaylistId && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: 'linear-gradient(transparent, var(--bg-primary) 20%)',
+          padding: 'var(--space-xl) var(--space-lg) var(--space-lg)',
+        }}>
+          <div className="container">
+            <button onClick={openInTidal} className="btn btn-primary" style={{ width: '100%', padding: 'var(--space-md)' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
+                <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
+              </svg>
+              Open in Tidal
+            </button>
+          </div>
+        </div>
+      )}
 
-      </div>
-
-      {/* Share modal */}
+      {/* Share Modal */}
       <AnimatePresence>
         {showShare && (
           <motion.div
@@ -835,772 +903,44 @@ export function SessionPage() {
             exit={{ opacity: 0 }}
             onClick={() => setShowShare(false)}
             style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.85)',
-              backdropFilter: 'blur(10px)',
-              zIndex: 110,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 'var(--space-lg)',
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 100, padding: 'var(--space-lg)',
             }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="card"
-              style={{
-                maxWidth: '400px',
-                width: '100%',
-                padding: 'var(--space-xl)',
-                textAlign: 'center',
-              }}
+              style={{ maxWidth: '400px', width: '100%', padding: 'var(--space-xl)' }}
             >
-              {/* Header */}
-              <div style={{ marginBottom: 'var(--space-xl)' }}>
-                <h2 style={{ marginBottom: 'var(--space-sm)' }}>Share Session</h2>
-                <p className="text-secondary">Invite others to join your music queue</p>
-              </div>
-
-              {/* QR Code */}
-              <div
-                style={{
-                  background: 'white',
-                  padding: 'var(--space-lg)',
-                  borderRadius: 'var(--radius-lg)',
-                  display: 'inline-block',
-                  marginBottom: 'var(--space-lg)',
-                }}
-              >
+              <h3 style={{ marginBottom: 'var(--space-lg)', textAlign: 'center' }}>Invite Friends</h3>
+              
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-lg)' }}>
                 <QRCodeSVG
-                  value={shareUrl}
+                  value={`${window.location.origin}/join/${sessionId}`}
                   size={180}
-                  level="M"
-                  includeMargin={false}
+                  bgColor="transparent"
+                  fgColor="#22d3ee"
                 />
               </div>
-
-              {/* Session Code */}
-              <div style={{ marginBottom: 'var(--space-xl)' }}>
-                <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: 'var(--space-sm)' }}>
-                  Session code (click to copy link):
-                </p>
-                <div
-                  onClick={handleCopyLink}
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '2rem',
-                    fontWeight: '600',
-                    letterSpacing: '0.2em',
-                    color: 'var(--accent-cyan)',
-                    cursor: 'pointer',
-                    padding: 'var(--space-md)',
-                    background: 'var(--bg-elevated)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--accent-cyan)',
-                    transition: 'all 0.2s',
-                  }}
-                  title="Click to copy full link"
-                >
+              
+              <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
+                <p className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>Code</p>
+                <code style={{ fontSize: '2rem', letterSpacing: '0.2em', fontWeight: '700', color: 'var(--accent-cyan)' }}>
                   {sessionId}
-                </div>
-                {copied && (
-                  <p style={{ color: 'var(--accent-green)', fontSize: '0.875rem', marginTop: 'var(--space-sm)' }}>
-                    Link copied!
-                  </p>
-                )}
+                </code>
               </div>
-
-              {/* Share buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                {/* Native Share (mobile) */}
-                {'share' in navigator && (
-                  <button
-                    onClick={handleNativeShare}
-                    className="btn btn-primary"
-                    style={{ width: '100%', padding: 'var(--space-lg)' }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                    Share via...
-                  </button>
-                )}
-
-                {/* Copy Link */}
-                <button
-                  onClick={handleCopyLink}
-                  className="btn btn-secondary"
-                  style={{ width: '100%', padding: 'var(--space-lg)' }}
-                >
-                  {copied ? (
-                    <>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-green)' }}>
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      <span style={{ color: 'var(--accent-green)' }}>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                      Copy Link
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Close */}
-              <button
-                onClick={() => setShowShare(false)}
-                className="btn btn-ghost"
-                style={{ marginTop: 'var(--space-lg)' }}
-              >
-                Done
+              
+              <button onClick={copyJoinUrl} className="btn btn-primary" style={{ width: '100%' }}>
+                {copied ? 'Copied!' : 'Copy Invite Link'}
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Playlists modal (host only) */}
-      <AnimatePresence>
-        {showPlaylists && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.9)',
-              backdropFilter: 'blur(10px)',
-              zIndex: 100,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div style={{ padding: 'var(--space-lg)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <button 
-                  onClick={selectedPlaylist ? () => { setSelectedPlaylist(null); setPlaylistTracks([]); } : handleClosePlaylists} 
-                  className="btn btn-ghost btn-icon"
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {selectedPlaylist ? (
-                      <path d="M19 12H5M12 19l-7-7 7-7" />
-                    ) : (
-                      <path d="M18 6 6 18M6 6l12 12" />
-                    )}
-                  </svg>
-                </button>
-                <div style={{ flex: 1 }}>
-                  <h2 style={{ fontSize: '1.25rem', marginBottom: '2px' }}>
-                    {selectedPlaylist ? selectedPlaylist.name : 'My Playlists'}
-                  </h2>
-                  {selectedPlaylist && (
-                    <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-                      {selectedPlaylist.trackCount} tracks • {selectedPlaylist.description}
-                    </p>
-                  )}
-                </div>
-                {selectedPlaylist && (
-                  <button
-                    onClick={handleAddAllTracks}
-                    className="btn btn-primary btn-sm"
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    Add All
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-lg)' }}>
-              {/* Loading state */}
-              {(isLoadingPlaylists || isLoadingTracks) && (
-                <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    style={{
-                      width: '30px',
-                      height: '30px',
-                      margin: '0 auto',
-                      border: '2px solid var(--bg-elevated)',
-                      borderTopColor: 'var(--accent-amber)',
-                      borderRadius: '50%',
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Playlists list */}
-              {!isLoadingPlaylists && !selectedPlaylist && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {playlists.map((playlist) => (
-                    <motion.div
-                      key={playlist.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="card"
-                      onClick={() => handleSelectPlaylist(playlist)}
-                      style={{
-                        padding: 'var(--space-md)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-md)',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s',
-                      }}
-                      whileHover={{ borderColor: 'var(--accent-amber)' }}
-                    >
-                      <img
-                        src={playlist.imageUrl}
-                        alt={playlist.name}
-                        style={{
-                          width: '64px',
-                          height: '64px',
-                          borderRadius: 'var(--radius-sm)',
-                          objectFit: 'cover',
-                        }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: '500', marginBottom: '4px' }}>
-                          {playlist.name}
-                        </div>
-                        <div className="text-secondary" style={{ fontSize: '0.875rem' }}>
-                          {playlist.trackCount} tracks
-                        </div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                          {playlist.description}
-                        </div>
-                      </div>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-
-              {/* Playlist tracks */}
-              {!isLoadingTracks && selectedPlaylist && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {playlistTracks.map((track, index) => (
-                    <motion.div
-                      key={track.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.03 }}
-                      className="card"
-                      style={{
-                        padding: 'var(--space-md)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-md)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '32px',
-                          textAlign: 'center',
-                          color: 'var(--text-muted)',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '0.875rem',
-                        }}
-                      >
-                        {index + 1}
-                      </div>
-                      <img
-                        src={track.albumArt}
-                        alt={track.album}
-                        style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: 'var(--radius-sm)',
-                          objectFit: 'cover',
-                        }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: '500',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {track.title}
-                        </div>
-                        <div
-                          className="text-secondary"
-                          style={{
-                            fontSize: '0.875rem',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {track.artist}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-                        <button
-                          onClick={() => handleAddPlaylistTrack(track, 'next')}
-                          className="btn btn-teal btn-sm"
-                          title="Play Next"
-                        >
-                          Next
-                        </button>
-                        <button
-                          onClick={() => handleAddPlaylistTrack(track, 'end')}
-                          className="btn btn-secondary btn-sm"
-                          title="Add to Queue"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Now Playing bar */}
-      {currentTrack && (
-        <NowPlayingBar
-          track={currentTrack}
-          isPlaying={sessionState.isPlaying}
-          isHost={sessionState.isHost}
-          isLoading={audioPlayer.isLoading}
-          progress={audioPlayer.progress}
-          playbackError={audioPlayer.error}
-          onPlay={() => playbackControl('play')}
-          onPause={() => playbackControl('pause')}
-          onNext={() => playbackControl('next')}
-          onPrevious={() => playbackControl('previous')}
-          formatDuration={formatDuration}
-        />
-      )}
     </div>
   );
 }
-
-// Queue item component
-function QueueItem({
-  track,
-  index,
-  isCurrent,
-  isPlaying,
-  onPlay,
-  onRemove,
-  formatDuration,
-}: {
-  track: Track;
-  index: number;
-  isCurrent: boolean;
-  isPlaying: boolean;
-  onPlay: () => void;
-  onRemove: () => void;
-  formatDuration: (s: number) => string;
-}) {
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card"
-      style={{
-        padding: 'var(--space-md)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-md)',
-        borderColor: isCurrent ? 'var(--accent-cyan)' : undefined,
-        boxShadow: isCurrent ? '0 0 20px rgba(0, 240, 255, 0.2)' : undefined,
-      }}
-    >
-      {/* Index / Play indicator */}
-      <div
-        style={{
-          width: '32px',
-          textAlign: 'center',
-          color: isCurrent ? 'var(--accent-cyan)' : 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.875rem',
-        }}
-      >
-        {isPlaying ? (
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 1, repeat: Infinity }}
-          >
-            ▶
-          </motion.div>
-        ) : (
-          index + 1
-        )}
-      </div>
-
-      {/* Album art */}
-      <img
-        src={track.albumArt}
-        alt={track.album}
-        style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: 'var(--radius-sm)',
-          objectFit: 'cover',
-        }}
-      />
-
-      {/* Track info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: '500',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            color: isCurrent ? 'var(--accent-cyan)' : 'var(--text-primary)',
-          }}
-        >
-          {track.title}
-        </div>
-        <div
-          className="text-secondary"
-          style={{
-            fontSize: '0.875rem',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {track.artist}
-        </div>
-        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-          Added by {track.addedBy}
-        </div>
-      </div>
-
-      {/* Duration */}
-      <span className="text-muted" style={{ fontSize: '0.875rem', fontFamily: 'var(--font-mono)' }}>
-        {formatDuration(track.duration)}
-      </span>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-        <button onClick={onPlay} className="btn btn-ghost btn-sm" title="Play now">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-        </button>
-        <button onClick={onRemove} className="btn btn-ghost btn-sm" title="Remove">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-// Search result component
-function SearchResultItem({
-  track,
-  onAddToQueue,
-  onPlayNext,
-  formatDuration,
-}: {
-  track: SearchResult;
-  onAddToQueue: () => void;
-  onPlayNext: () => void;
-  formatDuration: (s: number) => string;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card"
-      style={{
-        padding: 'var(--space-md)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-md)',
-      }}
-    >
-      {/* Album art */}
-      <img
-        src={track.albumArt}
-        alt={track.album}
-        style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: 'var(--radius-sm)',
-          objectFit: 'cover',
-        }}
-      />
-
-      {/* Track info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: '500',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {track.title}
-        </div>
-        <div
-          className="text-secondary"
-          style={{
-            fontSize: '0.875rem',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {track.artist} • {track.album}
-        </div>
-        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-          {formatDuration(track.duration)}
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-        <button
-          onClick={onPlayNext}
-          className="btn btn-teal btn-sm"
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          Play Next
-        </button>
-        <button
-          onClick={onAddToQueue}
-          className="btn btn-secondary btn-sm"
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          Add to Queue
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-// Now playing bar
-function NowPlayingBar({
-  track,
-  isPlaying,
-  isHost,
-  isLoading,
-  progress,
-  playbackError,
-  onPlay,
-  onPause,
-  onNext,
-  onPrevious,
-  formatDuration,
-}: {
-  track: Track;
-  isPlaying: boolean;
-  isHost: boolean;
-  isLoading?: boolean;
-  progress?: number;
-  playbackError?: string | null;
-  onPlay: () => void;
-  onPause: () => void;
-  onNext: () => void;
-  onPrevious: () => void;
-  formatDuration: (s: number) => string;
-}) {
-  return (
-    <motion.div
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      className="now-playing"
-    >
-      {/* Progress bar */}
-      {isHost && progress !== undefined && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '3px',
-            background: 'rgba(255,255,255,0.1)',
-          }}
-        >
-          <motion.div
-            style={{
-              height: '100%',
-              background: 'var(--accent-cyan)',
-              width: `${progress}%`,
-            }}
-            initial={false}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5, ease: 'linear' }}
-          />
-        </div>
-      )}
-      
-      <div className="container">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-          {/* Album art */}
-          <motion.img
-            animate={isPlaying && !isLoading ? { rotate: 360 } : {}}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            src={track.albumArt || undefined}
-            alt={track.album}
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: isPlaying ? '50%' : 'var(--radius-sm)',
-              objectFit: 'cover',
-              transition: 'border-radius 0.3s',
-              background: track.albumArt ? undefined : 'var(--bg-elevated)',
-            }}
-          />
-
-          {/* Track info */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: '500',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                color: 'var(--accent-cyan)',
-              }}
-            >
-              {track.title}
-            </div>
-            <div
-              className="text-secondary"
-              style={{
-                fontSize: '0.875rem',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {track.artist}
-            </div>
-            {/* Show playback error if any */}
-            {playbackError && isHost && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', marginTop: '2px' }}>
-                ⚠ {playbackError}
-              </div>
-            )}
-          </div>
-
-          {/* Playback controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            {isHost && (
-              <>
-                <button onClick={onPrevious} className="btn btn-ghost btn-icon" style={{ width: '44px', height: '44px' }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="19 20 9 12 19 4 19 20" />
-                    <line x1="5" y1="19" x2="5" y2="5" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={isPlaying ? onPause : onPlay}
-                  className="btn btn-primary btn-icon"
-                  style={{ 
-                    width: '56px', 
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'var(--gradient-glow)',
-                    boxShadow: isPlaying ? 'var(--shadow-glow-cyan)' : 'none',
-                  }}
-                  title={isPlaying ? 'Pause' : 'Play'}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                      </svg>
-                    </motion.div>
-                  ) : isPlaying ? (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                  ) : (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                      <polygon points="6 3 20 12 6 21 6 3" />
-                    </svg>
-                  )}
-                </button>
-                
-                <button onClick={onNext} className="btn btn-ghost btn-icon" style={{ width: '44px', height: '44px' }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 4 15 12 5 20 5 4" />
-                    <line x1="19" y1="5" x2="19" y2="19" />
-                  </svg>
-                </button>
-              </>
-            )}
-
-            {/* Playing indicator for non-hosts */}
-            {!isHost && (
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px',
-                padding: '8px 16px',
-                background: isPlaying ? 'rgba(0, 255, 170, 0.15)' : 'var(--bg-elevated)',
-                borderRadius: 'var(--radius-md)',
-              }}>
-                {isPlaying ? (
-                  <>
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 0.8, repeat: Infinity }}
-                      style={{ 
-                        width: '8px', 
-                        height: '8px', 
-                        borderRadius: '50%', 
-                        background: 'var(--accent-green)' 
-                      }}
-                    />
-                    <span style={{ color: 'var(--accent-green)', fontSize: '0.875rem', fontWeight: '500' }}>
-                      Now Playing
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-muted" style={{ fontSize: '0.875rem' }}>
-                    Paused
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-

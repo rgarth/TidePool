@@ -7,10 +7,8 @@ interface UseSocketReturn {
   sessionState: SessionState | null;
   error: string | null;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
-  addToQueue: (track: Omit<Track, 'id' | 'addedBy'>, position: 'end' | 'next') => void;
-  removeFromQueue: (trackId: string) => void;
-  playbackControl: (action: 'play' | 'pause' | 'next' | 'previous' | 'jump', trackIndex?: number) => void;
-  trackEnded: () => void;
+  addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
+  setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string) => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -47,22 +45,24 @@ export function useSocket(): UseSocketReturn {
       setSessionState(state);
     });
 
-    socket.on('queue_updated', (data: { queue: Track[]; action: string; track: Track }) => {
-      console.log('Queue updated:', data.action, data.track.title);
-      setSessionState((prev) => prev ? { ...prev, queue: data.queue } : null);
+    socket.on('playlist_updated', (data: { tracks: Track[]; action: string; track: Track; addedBy: string }) => {
+      console.log('Playlist updated:', data.action, data.track.title, 'by', data.addedBy);
+      setSessionState((prev) => prev ? { ...prev, tracks: data.tracks } : null);
     });
 
-    socket.on('playback_state', (data: { isPlaying: boolean; currentTrackIndex: number; currentTrack: Track | null }) => {
-      console.log('Playback state:', data);
-      setSessionState((prev) =>
-        prev
-          ? {
-              ...prev,
-              isPlaying: data.isPlaying,
-              currentTrackIndex: data.currentTrackIndex,
-            }
-          : null
-      );
+    // Playlist synced from Tidal (source of truth)
+    socket.on('playlist_synced', (data: { tracks: Track[] }) => {
+      console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks');
+      setSessionState((prev) => prev ? { ...prev, tracks: data.tracks } : null);
+    });
+
+    socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string }) => {
+      console.log('Playlist linked:', data.tidalPlaylistId);
+      setSessionState((prev) => prev ? { 
+        ...prev, 
+        tidalPlaylistId: data.tidalPlaylistId,
+        tidalPlaylistUrl: data.tidalPlaylistUrl,
+      } : null);
     });
 
     socket.on('participant_joined', (data: { name: string; participants: string[] }) => {
@@ -91,27 +91,15 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
-  const addToQueue = useCallback((track: Omit<Track, 'id' | 'addedBy'>, position: 'end' | 'next') => {
+  const addToPlaylist = useCallback((track: Omit<Track, 'id' | 'addedBy'>) => {
     if (socketRef.current) {
-      socketRef.current.emit('add_to_queue', { track, position });
+      socketRef.current.emit('add_to_playlist', { track });
     }
   }, []);
 
-  const removeFromQueue = useCallback((trackId: string) => {
+  const setPlaylist = useCallback((tidalPlaylistId: string, tidalPlaylistUrl: string) => {
     if (socketRef.current) {
-      socketRef.current.emit('remove_from_queue', { trackId });
-    }
-  }, []);
-
-  const playbackControl = useCallback((action: 'play' | 'pause' | 'next' | 'previous' | 'jump', trackIndex?: number) => {
-    if (socketRef.current) {
-      socketRef.current.emit('playback_control', { action, trackIndex });
-    }
-  }, []);
-
-  const trackEnded = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit('track_ended');
+      socketRef.current.emit('set_playlist', { tidalPlaylistId, tidalPlaylistUrl });
     }
   }, []);
 
@@ -120,10 +108,7 @@ export function useSocket(): UseSocketReturn {
     sessionState,
     error,
     joinSession,
-    addToQueue,
-    removeFromQueue,
-    playbackControl,
-    trackEnded,
+    addToPlaylist,
+    setPlaylist,
   };
 }
-

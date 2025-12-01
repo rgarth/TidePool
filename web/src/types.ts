@@ -12,9 +12,9 @@ export interface Track {
 export interface SessionState {
   id: string;
   name: string;
-  queue: Track[];
-  currentTrackIndex: number;
-  isPlaying: boolean;
+  tracks: Track[];
+  tidalPlaylistId?: string;
+  tidalPlaylistUrl?: string;
   isHost: boolean;
   participants: string[];
 }
@@ -37,4 +37,3 @@ export interface Playlist {
   imageUrl: string;
   description: string;
 }
-
