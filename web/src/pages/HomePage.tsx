@@ -60,7 +60,7 @@ export function HomePage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            Start a Session
+            Start a Pool
           </Link>
           
           <Link to="/join" className="btn btn-secondary" style={{ padding: 'var(--space-lg) var(--space-xl)' }}>
@@ -69,7 +69,7 @@ export function HomePage() {
               <polyline points="10 17 15 12 10 7" />
               <line x1="15" y1="12" x2="3" y2="12" />
             </svg>
-            Join Session
+            Join a Pool
           </Link>
         </motion.div>
 
@@ -85,9 +85,9 @@ export function HomePage() {
               How it works
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', textAlign: 'left' }}>
-              <Step number={1} text="Driver starts a session and connects to car stereo" />
+              <Step number={1} text="Driver starts a pool and connects to car stereo" />
               <Step number={2} text="Passengers join with a 6-letter code" />
-              <Step number={3} text="Everyone searches and adds songs to the queue" />
+              <Step number={3} text="Everyone searches and adds songs to the pool" />
               <Step number={4} text="Music plays through the driver's phone" />
             </div>
           </div>
@@ -102,15 +102,6 @@ export function HomePage() {
           style={{ marginTop: 'var(--space-2xl)', fontSize: '0.875rem' }}
         >
           Powered by Tidal • No more "pass the aux"
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
-          className="text-muted"
-          style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem', opacity: 0.6 }}
-        >
-          🌊 TidePool
         </motion.p>
       </div>
     </div>

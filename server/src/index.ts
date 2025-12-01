@@ -67,7 +67,7 @@ app.post('/api/sessions', (req, res) => {
   const session: Session = {
     id: sessionId,
     hostId: '', // Will be set when host connects via WebSocket
-    name: `${hostName}'s Party`,
+    name: hostName || 'Road Trip', // Use the name directly
     queue: [],
     currentTrackIndex: 0,
     isPlaying: false,

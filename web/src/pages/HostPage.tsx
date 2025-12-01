@@ -10,7 +10,7 @@ export function HostPage() {
 
   const handleCreateSession = async () => {
     if (!name.trim()) {
-      setError('Please enter your name');
+      setError('Give your pool a name');
       return;
     }
 
@@ -84,9 +84,9 @@ export function HostPage() {
                 </svg>
               </div>
               
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Start a Session</h2>
+              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Start a Pool</h2>
               <p className="text-secondary">
-                You'll be the DJ. Connect your phone to the car and let others queue songs.
+                You'll be the DJ. Connect to the car stereo and let passengers queue songs.
               </p>
             </div>
 
@@ -101,18 +101,21 @@ export function HostPage() {
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  Your Name
+                  Name this pool
                 </label>
                 <input
                   id="name"
                   type="text"
                   className="input input-lg"
-                  placeholder="Enter your name..."
+                  placeholder="Vegas Road Trip, Lake House Weekend..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
                   autoFocus
                 />
+                <p className="text-muted" style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem' }}>
+                  Trip name, destination, or your name
+                </p>
               </div>
 
               {error && (

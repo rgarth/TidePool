@@ -97,9 +97,9 @@ export function JoinPage() {
                 </svg>
               </div>
               
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Join Session</h2>
+              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Join a Pool</h2>
               <p className="text-secondary">
-                Enter the 6-letter code to join and start adding songs
+                Enter the 6-letter code to dive in and start adding songs
               </p>
             </div>
 
@@ -204,7 +204,7 @@ export function JoinPage() {
                       <polyline points="10 17 15 12 10 7" />
                       <line x1="15" y1="12" x2="3" y2="12" />
                     </svg>
-                    Join Session
+                    Dive In
                   </>
                 )}
               </button>

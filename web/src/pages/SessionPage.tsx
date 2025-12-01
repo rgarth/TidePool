@@ -50,8 +50,12 @@ export function SessionPage() {
   useEffect(() => {
     if (error) {
       console.error('Socket error:', error);
+      // Redirect to home if session not found
+      if (error.includes('not found')) {
+        navigate('/', { replace: true });
+      }
     }
-  }, [error]);
+  }, [error, navigate]);
 
   // Debounced search
   useEffect(() => {
@@ -207,10 +211,55 @@ export function SessionPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="page page-centered">
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              width: '80px',
+              height: '80px',
+              margin: '0 auto var(--space-lg)',
+              borderRadius: '50%',
+              background: 'var(--bg-elevated)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-amber)' }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <h2 style={{ marginBottom: 'var(--space-sm)' }}>Session Not Found</h2>
+          <p className="text-secondary" style={{ marginBottom: 'var(--space-xl)' }}>
+            This session may have expired or the code is incorrect.
+          </p>
+          <button onClick={() => navigate('/')} className="btn btn-primary">
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!sessionState) {
     return (
       <div className="page page-centered">
-        <p className="text-secondary">Loading session...</p>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid var(--bg-elevated)',
+            borderTopColor: 'var(--accent-cyan)',
+            borderRadius: '50%',
+          }}
+        />
+        <p className="text-secondary" style={{ marginTop: 'var(--space-md)' }}>Loading session...</p>
       </div>
     );
   }
