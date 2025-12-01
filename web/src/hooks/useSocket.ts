@@ -57,12 +57,13 @@ export function useSocket(): UseSocketReturn {
       setSessionState((prev) => prev ? { ...prev, tracks: data.tracks } : null);
     });
 
-    socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string }) => {
-      console.log('Playlist linked:', data.tidalPlaylistId);
+    socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string; sessionName?: string }) => {
+      console.log('Playlist linked:', data.tidalPlaylistId, data.sessionName);
       setSessionState((prev) => prev ? { 
         ...prev, 
         tidalPlaylistId: data.tidalPlaylistId,
         tidalPlaylistUrl: data.tidalPlaylistUrl,
+        name: data.sessionName || prev.name,
       } : null);
     });
 
@@ -98,9 +99,9 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
-  const setPlaylist = useCallback((tidalPlaylistId: string, tidalPlaylistUrl: string) => {
+  const setPlaylist = useCallback((tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => {
     if (socketRef.current) {
-      socketRef.current.emit('set_playlist', { tidalPlaylistId, tidalPlaylistUrl });
+      socketRef.current.emit('set_playlist', { tidalPlaylistId, tidalPlaylistUrl, playlistName });
     }
   }, []);
 

@@ -499,6 +499,29 @@ function parseTrackData(data: any, orderedIds?: string[]): Track[] {
   return Array.from(trackMap.values());
 }
 
+// Get playlist info (name, etc.)
+async function getPlaylistInfo(accessToken: string, playlistId: string): Promise<{ name: string; description?: string } | null> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/vnd.api+json',
+    },
+  });
+  
+  if (!response.ok) {
+    console.error(`Failed to get playlist info: ${response.status}`);
+    return null;
+  }
+  
+  const data = await response.json();
+  return {
+    name: data.data?.attributes?.name || 'Untitled Playlist',
+    description: data.data?.attributes?.description,
+  };
+}
+
 // Get full playlist with track details
 async function getPlaylistWithFullTracks(accessToken: string, playlistId: string, countryCode: string): Promise<Track[]> {
   // 1. Get track IDs from playlist
@@ -1153,10 +1176,18 @@ app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   }
 
   try {
-    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
+    // Get playlist info and tracks in parallel
+    const [playlistInfo, tracks] = await Promise.all([
+      getPlaylistInfo(auth.token, playlistId),
+      getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode),
+    ]);
     
-    console.log(`Got ${tracks.length} tracks from playlist ${playlistId}`);
-    return res.json({ tracks, authRequired: false });
+    console.log(`Got ${tracks.length} tracks from playlist ${playlistId} (${playlistInfo?.name})`);
+    return res.json({ 
+      tracks, 
+      playlistName: playlistInfo?.name,
+      authRequired: false,
+    });
     
   } catch (error: any) {
     console.error('>>> Tidal playlist tracks FAILED:', error);
@@ -1273,7 +1304,7 @@ io.on('connection', (socket) => {
   });
 
   // Set playlist ID for session (called by host after creating playlist in Tidal)
-  socket.on('set_playlist', ({ tidalPlaylistId, tidalPlaylistUrl }) => {
+  socket.on('set_playlist', ({ tidalPlaylistId, tidalPlaylistUrl, playlistName }) => {
     if (!currentSessionId || !isHost) return;
     
     const session = sessions.get(currentSessionId);
@@ -1281,14 +1312,20 @@ io.on('connection', (socket) => {
 
     session.tidalPlaylistId = tidalPlaylistId;
     session.tidalPlaylistUrl = tidalPlaylistUrl;
+    
+    // Update session name if playlist name provided
+    if (playlistName) {
+      session.name = playlistName;
+    }
 
     // Notify all clients
     io.to(session.id).emit('playlist_linked', {
       tidalPlaylistId,
       tidalPlaylistUrl,
+      sessionName: session.name,
     });
     
-    console.log(`Playlist ${tidalPlaylistId} linked to session ${currentSessionId}`);
+    console.log(`Playlist ${tidalPlaylistId} (${session.name}) linked to session ${currentSessionId}`);
   });
 
   // Disconnect

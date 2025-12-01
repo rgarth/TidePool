@@ -233,14 +233,17 @@ export function SessionPage() {
         throw new Error('Playlist not found or not accessible');
       }
       
-      // Playlist exists! Link it to the session
+      const data = await response.json();
+      const playlistName = data.playlistName;
+      
+      // Playlist exists! Link it to the session with its name
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
-      setPlaylist(cleanId, listenUrl);
+      setPlaylist(cleanId, listenUrl, playlistName);
       setShowPlaylistPicker(false);
       setExistingPlaylistId(''); // Clear input
       
       // Save as last used
-      localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId }));
+      localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId, name: playlistName }));
       
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
