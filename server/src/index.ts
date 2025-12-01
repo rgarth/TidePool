@@ -715,10 +715,11 @@ app.get('/api/auth/callback', async (req, res) => {
     console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... for session ${pending.sessionId}`);
     
     // Set persistent cookie (30 days)
+    // sameSite: 'none' required for cross-origin cookies (Vercel frontend → Render backend)
     res.cookie('tidepool_host', pending.hostToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, // Required when sameSite is 'none'
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
     
