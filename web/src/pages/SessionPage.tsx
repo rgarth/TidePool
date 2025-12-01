@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
@@ -8,6 +8,7 @@ import type { SearchResult, Track, Playlist } from '../types';
 export function SessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     isConnected,
     sessionState,
@@ -25,6 +26,10 @@ export function SessionPage() {
   const [activeTab, setActiveTab] = useState<'queue' | 'participants'>('queue');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  
   // Playlists state
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -36,6 +41,29 @@ export function SessionPage() {
   // Share modal state
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Check if just returned from auth
+  const authSuccess = searchParams.get('auth') === 'success';
+  
+  // Check authentication status (uses cookie, not session)
+  const checkAuthStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/status', {
+        credentials: 'include', // Send cookies
+      });
+      const data = await response.json();
+      setIsAuthenticated(data.authenticated);
+      setAuthChecked(true);
+    } catch (err) {
+      console.error('Failed to check auth status:', err);
+      setAuthChecked(true);
+    }
+  }, []);
+  
+  // Check auth on mount and after successful auth
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus, authSuccess]);
 
   // Join session on mount
   useEffect(() => {
@@ -71,9 +99,16 @@ export function SessionPage() {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}`);
+        const response = await fetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}`, {
+          credentials: 'include', // Send cookies for auth
+        });
         const data = await response.json();
         setSearchResults(data.tracks || []);
+        
+        // Check if auth is required for real results
+        if (data.authRequired && sessionState?.isHost) {
+          console.log('Auth required for real Tidal search results');
+        }
       } catch (err) {
         console.error('Search error:', err);
       } finally {
@@ -86,7 +121,7 @@ export function SessionPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, sessionState?.isHost]);
 
   const handleAddTrack = (track: SearchResult, position: 'end' | 'next') => {
     addToQueue(track, position);
@@ -99,7 +134,9 @@ export function SessionPage() {
     setShowPlaylists(true);
     setIsLoadingPlaylists(true);
     try {
-      const response = await fetch('/api/tidal/playlists');
+      const response = await fetch('/api/tidal/playlists', {
+        credentials: 'include', // Send cookies for auth
+      });
       const data = await response.json();
       setPlaylists(data.playlists || []);
     } catch (err) {
@@ -113,7 +150,9 @@ export function SessionPage() {
     setSelectedPlaylist(playlist);
     setIsLoadingTracks(true);
     try {
-      const response = await fetch(`/api/tidal/playlists/${playlist.id}/tracks`);
+      const response = await fetch(`/api/tidal/playlists/${playlist.id}/tracks`, {
+        credentials: 'include', // Send cookies for auth
+      });
       const data = await response.json();
       setPlaylistTracks(data.tracks || []);
     } catch (err) {
@@ -121,6 +160,11 @@ export function SessionPage() {
     } finally {
       setIsLoadingTracks(false);
     }
+  };
+  
+  // Handle Tidal login
+  const handleTidalLogin = () => {
+    window.location.href = `/api/auth/login?sessionId=${sessionId}`;
   };
 
   const handleAddPlaylistTrack = (track: SearchResult, position: 'end' | 'next') => {
@@ -300,7 +344,50 @@ export function SessionPage() {
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+              {/* Tidal Login button (host only, when not authenticated) */}
+              {sessionState.isHost && authChecked && !isAuthenticated && (
+                <button
+                  onClick={handleTidalLogin}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #00FFFF 0%, #00D4AA 100%)',
+                    color: 'var(--bg-primary)',
+                    fontWeight: '600',
+                  }}
+                  title="Connect your Tidal account for real search results"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '6px' }}>
+                    <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
+                  </svg>
+                  Login
+                </button>
+              )}
+              
+              {/* Connected indicator */}
+              {sessionState.isHost && isAuthenticated && (
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                    padding: '6px 10px',
+                    background: 'rgba(0, 255, 170, 0.15)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.75rem',
+                    color: 'var(--accent-green)',
+                  }}
+                >
+                  <div style={{ 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    background: 'var(--accent-green)' 
+                  }} />
+                  Tidal
+                </div>
+              )}
+              
               <button
                 onClick={() => setShowShare(true)}
                 className="btn btn-secondary btn-sm"
@@ -377,7 +464,44 @@ export function SessionPage() {
                   <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
                     Queue is empty
                   </h3>
-                  <p className="text-muted">Search for songs to add them to the queue</p>
+                  <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
+                    Search for songs to add them to the queue
+                  </p>
+                  
+                  {/* Prompt host to login if not authenticated */}
+                  {sessionState.isHost && authChecked && !isAuthenticated && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="card"
+                      style={{
+                        maxWidth: '400px',
+                        margin: '0 auto',
+                        padding: 'var(--space-lg)',
+                        borderColor: 'var(--accent-cyan)',
+                        background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.05) 0%, rgba(0, 212, 170, 0.05) 100%)',
+                      }}
+                    >
+                      <div style={{ marginBottom: 'var(--space-md)' }}>
+                        <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--space-xs)' }}>
+                          Connect Tidal
+                        </h4>
+                        <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
+                          Login to search the real Tidal catalog and access your playlists
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleTidalLogin}
+                        className="btn btn-primary"
+                        style={{ width: '100%' }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
+                          <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
+                        </svg>
+                        Login with Tidal
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
@@ -664,10 +788,10 @@ export function SessionPage() {
               {/* Session Code */}
               <div style={{ marginBottom: 'var(--space-xl)' }}>
                 <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: 'var(--space-sm)' }}>
-                  Or enter code manually:
+                  Session code (click to copy link):
                 </p>
                 <div
-                  onClick={handleCopyCode}
+                  onClick={handleCopyLink}
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: '2rem',
@@ -681,10 +805,15 @@ export function SessionPage() {
                     border: '1px solid var(--accent-cyan)',
                     transition: 'all 0.2s',
                   }}
-                  title="Click to copy"
+                  title="Click to copy full link"
                 >
                   {sessionId}
                 </div>
+                {copied && (
+                  <p style={{ color: 'var(--accent-green)', fontSize: '0.875rem', marginTop: 'var(--space-sm)' }}>
+                    Link copied!
+                  </p>
+                )}
               </div>
 
               {/* Share buttons */}
