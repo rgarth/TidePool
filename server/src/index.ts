@@ -49,7 +49,7 @@ const TIDAL_AUTH_BASE = 'https://login.tidal.com';
 const TIDAL_TOKEN_URL = 'https://auth.tidal.com/v1/oauth2/token';
 const TIDAL_API_URL = 'https://openapi.tidal.com';
 const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3001/api/auth/callback';
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const CLIENT_URL = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // OAuth scopes we need (minimal for playlist generator)
 const TIDAL_SCOPES = [
