@@ -289,7 +289,7 @@ export function SessionPage() {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await fetch(`${API_URL}/api/tidal/search?query=${encodeURIComponent(searchQuery)}`, {
+        const response = await fetch(`${API_URL}/api/tidal/search?query=${encodeURIComponent(searchQuery)}&sessionId=${sessionId}`, {
           credentials: 'include',
         });
         const data = await response.json();
@@ -659,7 +659,6 @@ export function SessionPage() {
             placeholder="Search for songs to add..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={!isAuthenticated && !sessionState.isHost}
             style={{
               width: '100%',
               paddingLeft: '44px',

@@ -542,6 +542,7 @@ interface Track {
 interface Session {
   id: string;
   hostId: string;
+  hostToken?: string; // Reference to host's auth token (so guests can use it)
   name: string;
   // Playlist info (created in Tidal)
   tidalPlaylistId?: string;
@@ -714,6 +715,13 @@ app.get('/api/auth/callback', async (req, res) => {
 
     console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... for session ${pending.sessionId}`);
     
+    // Store hostToken in session so guests can use it for search
+    const session = sessions.get(pending.sessionId.toUpperCase());
+    if (session) {
+      session.hostToken = pending.hostToken;
+      console.log(`Stored hostToken in session ${pending.sessionId}`);
+    }
+    
     // Set persistent cookie (30 days)
     // sameSite: 'none' required for cross-origin cookies (Vercel frontend → Render backend)
     res.cookie('tidepool_host', pending.hostToken, {
@@ -871,14 +879,24 @@ app.get('/api/sessions/:sessionId', (req, res) => {
 
 // Search Tidal catalog
 app.get('/api/tidal/search', async (req, res) => {
-  const { query } = req.query;
+  const { query, sessionId } = req.query;
   
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Query parameter required' });
   }
 
-  // Get host's token from cookie
-  const hostToken = req.cookies.tidepool_host;
+  // Try to get host's token from cookie first
+  let hostToken = req.cookies.tidepool_host;
+  
+  // If no cookie but sessionId provided, use session's hostToken (for guests)
+  if (!hostToken && sessionId && typeof sessionId === 'string') {
+    const session = sessions.get(sessionId.toUpperCase());
+    if (session?.hostToken) {
+      hostToken = session.hostToken;
+      console.log(`Guest search using session ${sessionId} hostToken`);
+    }
+  }
+  
   console.log(`Search request - hostToken: ${hostToken ? hostToken.substring(0, 8) + '...' : 'none'}`);
   
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
@@ -1036,7 +1054,15 @@ app.post('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   const { playlistId } = req.params;
   const { trackIds, sessionId } = req.body; // Array of Tidal track IDs + session to broadcast to
   
-  const hostToken = req.cookies.tidepool_host;
+  // Try cookie first, then session's hostToken for guests
+  let hostToken = req.cookies.tidepool_host;
+  if (!hostToken && sessionId) {
+    const session = sessions.get(sessionId.toUpperCase());
+    if (session?.hostToken) {
+      hostToken = session.hostToken;
+    }
+  }
+  
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
