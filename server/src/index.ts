@@ -4,10 +4,37 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
+import path from 'path';
 import dotenv from 'dotenv';
 import { nanoid } from 'nanoid';
 
 dotenv.config();
+
+// Token persistence file (for development - survives server restarts)
+const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');
+
+function loadTokens(): Map<string, any> {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf-8'));
+      console.log(`Loaded ${Object.keys(data).length} tokens from disk`);
+      return new Map(Object.entries(data));
+    }
+  } catch (e) {
+    console.error('Failed to load tokens:', e);
+  }
+  return new Map();
+}
+
+function saveTokens(tokens: Map<string, any>) {
+  try {
+    const data = Object.fromEntries(tokens);
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Failed to save tokens:', e);
+  }
+}
 
 // Tidal API configuration
 const TIDAL_CLIENT_ID = process.env.TIDAL_CLIENT_ID;
@@ -26,6 +53,7 @@ const TIDAL_SCOPES = [
   'playlists.read',
   'playlists.write',
   'entitlements.read',
+  'playback',  // Required for streaming audio
 ].join(' ');
 
 // User tokens storage (in production, use Redis/DB)
@@ -36,7 +64,8 @@ interface UserTokens {
   expiresAt: number;
   countryCode: string;
 }
-const hostTokens = new Map<string, UserTokens>(); // hostToken -> Tidal tokens
+// Load tokens from disk on startup (survives server restarts during dev)
+const hostTokens = loadTokens() as Map<string, UserTokens>;
 
 // PKCE helpers
 function generateCodeVerifier(): string {
@@ -99,44 +128,117 @@ async function refreshAccessToken(refreshToken: string): Promise<any> {
 }
 
 // Search Tidal catalog using user's token
+// Based on official SDK: https://github.com/tidal-music/tidal-sdk-web
 async function searchTidal(accessToken: string, query: string, countryCode: string, limit = 20): Promise<any> {
-  const url = `${TIDAL_API_URL}/search?query=${encodeURIComponent(query)}&limit=${limit}&offset=0&countryCode=${countryCode}&include=tracks`;
+  // Correct URL: searchResults (camelCase R!)
+  // First get the search results with track IDs
+  const searchUrl = `https://openapi.tidal.com/v2/searchResults/${encodeURIComponent(query)}?countryCode=${countryCode}&include=tracks,artists,albums`;
   
-  console.log(`Searching Tidal: "${query}" (country: ${countryCode})`);
+  console.log(`>>> searchTidal() called for "${query}"`);
+  console.log(`>>> URL: ${searchUrl}`);
+  
+  const response = await fetch(searchUrl, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/vnd.api+json',
+    },
+  });
+
+  console.log(`>>> Response status: ${response.status}`);
+  
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Tidal search error (${response.status}):`, error.substring(0, 1000));
+    throw new Error(`Tidal search failed: ${response.status} - ${error.substring(0, 200)}`);
+  }
+
+  const searchData = await response.json();
+  console.log(`>>> Search response keys:`, Object.keys(searchData));
+  
+  // The search returns track IDs in relationships, we need to fetch full track data
+  // Get track IDs from the relationships
+  const trackRefs = searchData.data?.relationships?.tracks?.data || [];
+  console.log(`>>> Found ${trackRefs.length} track references`);
+  
+  if (trackRefs.length === 0) {
+    return { tracks: [] };
+  }
+  
+  // Fetch full track details (batch up to 20)
+  // Include albums.coverArt to get artwork in the included array
+  const trackIds = trackRefs.slice(0, limit).map((t: any) => t.id).join(',');
+  const tracksUrl = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${trackIds}&include=albums.coverArt,artists`;
+  
+  console.log(`>>> Fetching track details: ${tracksUrl}`);
+  
+  const tracksResponse = await fetch(tracksUrl, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/vnd.api+json',
+    },
+  });
+  
+  if (!tracksResponse.ok) {
+    console.error(`>>> Failed to fetch track details: ${tracksResponse.status}`);
+    // Return what we have from search
+    return searchData;
+  }
+  
+  const tracksData = await tracksResponse.json();
+  console.log(`>>> Got full track data, keys:`, Object.keys(tracksData));
+  console.log(`>>> Track data sample:`, JSON.stringify(tracksData).substring(0, 2000));
+  
+  return tracksData;
+}
+
+// Get track playback info (stream URL)
+async function getPlaybackInfo(accessToken: string, trackId: string, countryCode: string): Promise<any> {
+  // Use v1 API for playback info
+  const url = `https://api.tidal.com/v1/tracks/${trackId}/playbackinfo?audioquality=HIGH&playbackmode=STREAM&assetpresentation=FULL`;
+  
+  console.log(`>>> getPlaybackInfo for track ${trackId}`);
+  
+  // Generate a streaming session ID (UUID-like)
+  const streamingSessionId = crypto.randomUUID();
   
   const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/vnd.tidal.v1+json',
-      'Accept': 'application/vnd.tidal.v1+json',
+      'Content-Type': 'application/json',
+      'x-tidal-token': TIDAL_CLIENT_ID || '',
+      'x-tidal-streamingsessionid': streamingSessionId,
     },
   });
-
+  
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Tidal search error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Tidal search failed: ${response.status}`);
+    console.error(`>>> Playback info error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to get playback info: ${response.status} - ${error.substring(0, 200)}`);
   }
-
+  
   return response.json();
 }
 
 // Get user's playlists
+// Using v2 API: https://openapi.tidal.com/v2/
 async function getUserPlaylists(accessToken: string, countryCode: string): Promise<any> {
-  const url = `${TIDAL_API_URL}/me/playlists?countryCode=${countryCode}&limit=50`;
+  const url = `https://openapi.tidal.com/v2/userPlaylists?countryCode=${countryCode}&limit=50`;
+  
+  console.log(`>>> getUserPlaylists URL: ${url}`);
   
   const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/vnd.tidal.v1+json',
-      'Accept': 'application/vnd.tidal.v1+json',
+      'Accept': 'application/vnd.api+json',
     },
   });
 
+  console.log(`>>> Playlists response status: ${response.status}`);
+  
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Tidal playlists error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playlists: ${response.status}`);
+    console.error(`>>> Tidal playlists error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to get playlists: ${response.status} - ${error.substring(0, 200)}`);
   }
 
   return response.json();
@@ -144,20 +246,23 @@ async function getUserPlaylists(accessToken: string, countryCode: string): Promi
 
 // Get playlist tracks
 async function getPlaylistTracks(accessToken: string, playlistId: string, countryCode: string): Promise<any> {
-  const url = `${TIDAL_API_URL}/playlists/${playlistId}/items?countryCode=${countryCode}&limit=100`;
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items?countryCode=${countryCode}&limit=100`;
+  
+  console.log(`>>> getPlaylistTracks URL: ${url}`);
   
   const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/vnd.tidal.v1+json',
-      'Accept': 'application/vnd.tidal.v1+json',
+      'Accept': 'application/vnd.api+json',
     },
   });
 
+  console.log(`>>> Playlist tracks response status: ${response.status}`);
+  
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Tidal playlist tracks error (${response.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playlist tracks: ${response.status}`);
+    console.error(`>>> Tidal playlist tracks error (${response.status}):`, error.substring(0, 500));
+    throw new Error(`Failed to get playlist tracks: ${response.status} - ${error.substring(0, 200)}`);
   }
 
   return response.json();
@@ -329,6 +434,9 @@ app.get('/api/auth/callback', async (req, res) => {
       expiresAt: Date.now() + tokens.expires_in * 1000,
       countryCode,
     });
+    
+    // Save to disk (survives server restarts during dev)
+    saveTokens(hostTokens);
 
     console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... for session ${pending.sessionId}`);
     
@@ -353,9 +461,20 @@ app.get('/api/auth/callback', async (req, res) => {
 app.get('/api/auth/status', (req, res) => {
   const hostToken = req.cookies.tidepool_host;
   const tokens = hostToken ? hostTokens.get(hostToken) : null;
+  
+  console.log('>>> Auth status check:');
+  console.log('>>>   Cookie present:', !!hostToken);
+  console.log('>>>   Cookie value:', hostToken ? hostToken.substring(0, 8) + '...' : 'none');
+  console.log('>>>   Tokens in map:', hostTokens.size);
+  console.log('>>>   Token found:', !!tokens);
+  
   res.json({
     authenticated: !!tokens,
     expiresAt: tokens?.expiresAt,
+    debug: {
+      cookiePresent: !!hostToken,
+      tokensInMemory: hostTokens.size,
+    }
   });
 });
 
@@ -369,6 +488,30 @@ app.get('/api/auth/status/:sessionId', (req, res) => {
   });
 });
 
+// Get credentials for Tidal Player SDK
+app.get('/api/auth/credentials', async (req, res) => {
+  const hostToken = req.cookies.tidepool_host;
+  
+  if (!hostToken) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const auth = await getHostAccessToken(hostToken);
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Session expired' });
+  }
+  
+  const tokens = hostTokens.get(hostToken);
+  
+  res.json({
+    clientId: TIDAL_CLIENT_ID,
+    accessToken: auth.token,
+    expiresAt: tokens?.expiresAt,
+    countryCode: auth.countryCode,
+  });
+});
+
 // Logout (revoke tokens)
 app.post('/api/auth/logout', (req, res) => {
   const hostToken = req.cookies.tidepool_host;
@@ -377,6 +520,56 @@ app.post('/api/auth/logout', (req, res) => {
   }
   res.clearCookie('tidepool_host');
   res.json({ success: true });
+});
+
+// Debug endpoint to test Tidal API directly
+app.get('/api/debug/tidal-test', async (req, res) => {
+  const hostToken = req.cookies.tidepool_host;
+  const tokens = hostToken ? hostTokens.get(hostToken) : null;
+  
+  if (!tokens) {
+    return res.json({ error: 'Not authenticated' });
+  }
+  
+  const albumId = (req.query.albumId as string) || '573341'; // Weezer green album
+  const countryCode = tokens.countryCode || 'US';
+  
+  // Test album endpoint with coverArt
+  const urls = [
+    `https://openapi.tidal.com/v2/albums/${albumId}?countryCode=${countryCode}&include=coverArt`,
+    `https://openapi.tidal.com/v2/albums/${albumId}/relationships/coverArt?countryCode=${countryCode}`,
+  ];
+  
+  const results: any[] = [];
+  
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${tokens.accessToken}`,
+          'Accept': 'application/vnd.api+json',
+        },
+      });
+      
+      const text = await response.text();
+      results.push({
+        url,
+        status: response.status,
+        body: text.substring(0, 3000),
+      });
+    } catch (e: any) {
+      results.push({
+        url,
+        error: e.message,
+      });
+    }
+  }
+  
+  res.json({
+    token: tokens.accessToken.substring(0, 30) + '...',
+    countryCode,
+    results,
+  });
 });
 
 // ============================================
@@ -441,47 +634,155 @@ app.get('/api/tidal/search', async (req, res) => {
 
   // Get host's token from cookie
   const hostToken = req.cookies.tidepool_host;
+  console.log(`Search request - hostToken: ${hostToken ? hostToken.substring(0, 8) + '...' : 'none'}`);
+  
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
-    // Not authenticated - return mock data with auth required flag
-    console.log('No auth, returning mock results');
-    const mockResults = generateMockSearchResults(query);
-    return res.json({ ...mockResults, authRequired: true });
+    // Not authenticated - return error, not mock data
+    console.log('>>> NO AUTH - hostToken:', hostToken ? 'exists' : 'missing');
+    console.log('>>> hostTokens map size:', hostTokens.size);
+    return res.status(401).json({ error: 'Not authenticated. Please login with Tidal.', authRequired: true });
   }
+  
+  console.log(`Authenticated search for "${query}" (country: ${auth.countryCode})`);
 
   try {
+    console.log('>>> Calling Tidal API...');
     const tidalResults = await searchTidal(auth.token, query, auth.countryCode);
+    console.log('>>> Tidal API response:', JSON.stringify(tidalResults).substring(0, 1500));
     
-    // Transform Tidal response to our format
-    // The response structure may vary, let's handle both formats
-    const trackData = tidalResults.tracks?.items || tidalResults.tracks || tidalResults.data || [];
+    // JSON:API format: tracks in 'data' array, related albums/artists in 'included'
+    const trackData = Array.isArray(tidalResults.data) ? tidalResults.data : [];
+    const included = tidalResults.included || [];
     
-    const tracks = trackData.map((item: any) => {
-      const track = item.resource || item;
+    console.log(`>>> Found ${trackData.length} tracks in 'data'`);
+    console.log(`>>> Found ${included.length} items in 'included'`);
+    
+    // Build maps for quick lookup
+    const albumMap = new Map<string, any>();
+    const artistMap = new Map<string, any>();
+    const artworkMap = new Map<string, any>(); // artworks type = album covers
+    
+    included.forEach((item: any) => {
+      if (item.type === 'albums') albumMap.set(item.id, item);
+      if (item.type === 'artists') artistMap.set(item.id, item);
+      if (item.type === 'artworks') artworkMap.set(item.id, item);
+    });
+    
+    console.log(`>>> Maps: ${albumMap.size} albums, ${artistMap.size} artists, ${artworkMap.size} artworks`);
+    
+    // Parse ISO 8601 duration (PT3M20S) to seconds
+    function parseDuration(isoDuration: string): number {
+      if (!isoDuration) return 0;
+      const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (!match) return 0;
+      const hours = parseInt(match[1] || '0', 10);
+      const minutes = parseInt(match[2] || '0', 10);
+      const seconds = parseInt(match[3] || '0', 10);
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+    
+    const tracks = trackData.map((track: any) => {
+      const attrs = track.attributes || {};
+      const relationships = track.relationships || {};
+      
+      // Get album info
+      const albumRef = relationships.albums?.data?.[0];
+      const album = albumRef ? albumMap.get(albumRef.id) : null;
+      const albumAttrs = album?.attributes || {};
+      const albumRelationships = album?.relationships || {};
+      
+      // Get artist info
+      const artistRefs = relationships.artists?.data || [];
+      const artistNames = artistRefs.map((ref: any) => {
+        const artist = artistMap.get(ref.id);
+        return artist?.attributes?.name || 'Unknown';
+      }).join(', ') || 'Unknown Artist';
+      
+      // Get album art from coverArt relationship -> artworks
+      let albumArt = '';
+      const coverArtRef = albumRelationships.coverArt?.data?.[0];
+      if (coverArtRef) {
+        const artwork = artworkMap.get(coverArtRef.id);
+        if (artwork?.attributes?.files) {
+          const files = artwork.attributes.files;
+          // Find 320x320 or closest size
+          const img = files.find((f: any) => f.meta?.width === 320) ||
+                      files.find((f: any) => f.meta?.width >= 160) ||
+                      files[0];
+          albumArt = img?.href || '';
+        }
+      }
+      
       return {
         id: track.id?.toString() || nanoid(),
         tidalId: track.id?.toString(),
-        title: track.title || 'Unknown',
-        artist: track.artists?.map((a: any) => a.name).join(', ') || 
-                track.artist?.name || 'Unknown Artist',
-        album: track.album?.title || 'Unknown Album',
-        duration: track.duration || 0,
-        albumArt: track.album?.imageCover?.[0]?.url ||
-                  (track.album?.cover ? 
-                    `https://resources.tidal.com/images/${track.album.cover.replace(/-/g, '/')}/320x320.jpg` :
-                    `https://picsum.photos/seed/${track.id}/300/300`),
+        title: attrs.title || 'Unknown',
+        artist: artistNames,
+        album: albumAttrs.title || 'Unknown Album',
+        duration: parseDuration(attrs.duration),
+        albumArt,
       };
     });
     
-    console.log(`Tidal search for "${query}" returned ${tracks.length} tracks`);
+    console.log(`>>> Returning ${tracks.length} tracks to client`);
     return res.json({ tracks, authRequired: false });
     
-  } catch (error) {
-    console.error('Tidal API error:', error);
-    // Return mock data on error
-    const mockResults = generateMockSearchResults(query);
-    return res.json({ ...mockResults, error: 'Search failed, showing sample results' });
+  } catch (error: any) {
+    console.error('>>> Tidal API FAILED:', error.message);
+    console.error('>>> Full error:', error);
+    // Return actual error, not mock data
+    return res.status(500).json({ error: `Tidal API failed: ${error.message}` });
+  }
+});
+
+// Get track playback info (stream URL)
+app.get('/api/tidal/playback/:trackId', async (req, res) => {
+  const { trackId } = req.params;
+  const hostToken = req.cookies.tidepool_host;
+  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const playbackInfo = await getPlaybackInfo(auth.token, trackId, auth.countryCode);
+    console.log('>>> Playback info:', JSON.stringify(playbackInfo).substring(0, 500));
+    
+    // The manifest contains the actual stream URL (usually base64 encoded)
+    // Decode if needed
+    let streamUrl = '';
+    if (playbackInfo.manifest) {
+      try {
+        const decoded = Buffer.from(playbackInfo.manifest, 'base64').toString('utf-8');
+        console.log('>>> Decoded manifest:', decoded.substring(0, 500));
+        
+        // Parse the manifest - it could be JSON or XML
+        if (decoded.startsWith('{')) {
+          const manifest = JSON.parse(decoded);
+          streamUrl = manifest.urls?.[0] || manifest.url || '';
+        } else if (decoded.includes('http')) {
+          // Extract URL from XML or plain text
+          const urlMatch = decoded.match(/https?:\/\/[^\s<>"]+/);
+          streamUrl = urlMatch ? urlMatch[0] : '';
+        }
+      } catch (e) {
+        console.error('>>> Failed to decode manifest:', e);
+      }
+    }
+    
+    res.json({
+      trackId,
+      streamUrl,
+      manifestMimeType: playbackInfo.manifestMimeType,
+      audioQuality: playbackInfo.audioQuality,
+      raw: playbackInfo,
+    });
+  } catch (error: any) {
+    console.error('>>> Playback error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -492,8 +793,8 @@ app.get('/api/tidal/playlists', async (req, res) => {
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
-    console.log('No auth for playlists, returning mock data');
-    return res.json({ ...generateMockPlaylists(), authRequired: true });
+    console.log('>>> NO AUTH for playlists');
+    return res.status(401).json({ error: 'Not authenticated', authRequired: true });
   }
 
   try {
@@ -519,9 +820,9 @@ app.get('/api/tidal/playlists', async (req, res) => {
     console.log(`Got ${playlists.length} playlists`);
     return res.json({ playlists, authRequired: false });
     
-  } catch (error) {
-    console.error('Tidal playlists error:', error);
-    return res.json({ ...generateMockPlaylists(), error: 'Failed to load playlists' });
+  } catch (error: any) {
+    console.error('>>> Tidal playlists FAILED:', error);
+    return res.status(500).json({ error: `Failed to load playlists: ${error.message}` });
   }
 });
 
@@ -534,7 +835,8 @@ app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
-    return res.json({ ...generateMockPlaylistTracks(playlistId), authRequired: true });
+    console.log('>>> NO AUTH for playlist tracks');
+    return res.status(401).json({ error: 'Not authenticated', authRequired: true });
   }
 
   try {
@@ -563,9 +865,9 @@ app.get('/api/tidal/playlists/:playlistId/tracks', async (req, res) => {
     console.log(`Got ${tracks.length} tracks from playlist ${playlistId}`);
     return res.json({ tracks, authRequired: false });
     
-  } catch (error) {
-    console.error('Tidal playlist tracks error:', error);
-    return res.json({ ...generateMockPlaylistTracks(playlistId), error: 'Failed to load tracks' });
+  } catch (error: any) {
+    console.error('>>> Tidal playlist tracks FAILED:', error);
+    return res.status(500).json({ error: `Failed to load tracks: ${error.message}` });
   }
 });
 
