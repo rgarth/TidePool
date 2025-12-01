@@ -324,23 +324,9 @@ export function SessionPage() {
     }
   };
 
-  // Share functionality
-  const handleShare = async () => {
-    const joinUrl = `${window.location.origin}/join/${sessionId}`;
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Join ${sessionState?.name || 'playlist'}`,
-          text: 'Add songs to our collaborative playlist!',
-          url: joinUrl,
-        });
-      } catch (err) {
-        // User cancelled
-      }
-    } else {
-      setShowShare(true);
-    }
+  // Share functionality - always show QR modal
+  const handleShare = () => {
+    setShowShare(true);
   };
 
   const copyJoinUrl = async () => {
