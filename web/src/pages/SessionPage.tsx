@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
+import { useTidalPlayer } from '../hooks/useTidalPlayer';
 import type { SearchResult, Track, Playlist } from '../types';
 
 export function SessionPage() {
@@ -25,6 +26,9 @@ export function SessionPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [activeTab, setActiveTab] = useState<'queue' | 'participants'>('queue');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Tidal player for opening tracks
+  const { openInTidal } = useTidalPlayer();
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -439,85 +443,209 @@ export function SessionPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.2 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
             >
-              {/* Queue list */}
-              {sessionState.queue.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  <div
+              {/* Search input at top */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Search for songs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    paddingLeft: '44px',
+                    paddingRight: searchQuery ? '44px' : undefined,
+                  }}
+                />
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
                     style={{
-                      width: '80px',
-                      height: '80px',
-                      margin: '0 auto var(--space-lg)',
-                      borderRadius: '50%',
-                      background: 'var(--bg-elevated)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      padding: '8px',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
                     }}
                   >
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
-                      <path d="M9 18V5l12-2v13" />
-                      <circle cx="6" cy="18" r="3" />
-                      <circle cx="18" cy="16" r="3" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6 6 18M6 6l12 12" />
                     </svg>
-                  </div>
-                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                    Queue is empty
-                  </h3>
-                  <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
-                    Search for songs to add them to the queue
-                  </p>
-                  
-                  {/* Prompt host to login if not authenticated */}
-                  {sessionState.isHost && authChecked && !isAuthenticated && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="card"
-                      style={{
-                        maxWidth: '400px',
-                        margin: '0 auto',
-                        padding: 'var(--space-lg)',
-                        borderColor: 'var(--accent-cyan)',
-                        background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.05) 0%, rgba(0, 212, 170, 0.05) 100%)',
-                      }}
-                    >
-                      <div style={{ marginBottom: 'var(--space-md)' }}>
-                        <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--space-xs)' }}>
-                          Connect Tidal
-                        </h4>
-                        <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-                          Login to search the real Tidal catalog and access your playlists
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleTidalLogin}
-                        className="btn btn-primary"
-                        style={{ width: '100%' }}
+                  </button>
+                )}
+              </div>
+
+              {/* Show search results when searching */}
+              {searchQuery.trim().length >= 2 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                  {isSearching ? (
+                    <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                        style={{ display: 'inline-block', marginBottom: 'var(--space-sm)' }}
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
-                          <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                         </svg>
-                        Login with Tidal
-                      </button>
-                    </motion.div>
+                      </motion.div>
+                      <div>Searching...</div>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
+                      No results found for "{searchQuery}"
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-muted" style={{ fontSize: '0.875rem', padding: '0 var(--space-xs)' }}>
+                        {searchResults.length} results
+                      </div>
+                      {searchResults.map((track) => (
+                        <SearchResultItem
+                          key={track.id}
+                          track={track}
+                          onAddToQueue={() =>
+                            addToQueue(
+                              {
+                                tidalId: track.tidalId,
+                                title: track.title,
+                                artist: track.artist,
+                                album: track.album,
+                                duration: track.duration,
+                                albumArt: track.albumArt,
+                              },
+                              'end'
+                            )
+                          }
+                          onPlayNext={() =>
+                            addToQueue(
+                              {
+                                tidalId: track.tidalId,
+                                title: track.title,
+                                artist: track.artist,
+                                album: track.album,
+                                duration: track.duration,
+                                albumArt: track.albumArt,
+                              },
+                              'next'
+                            )
+                          }
+                          formatDuration={formatDuration}
+                        />
+                      ))}
+                    </>
                   )}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {sessionState.queue.map((track, index) => (
-                    <QueueItem
-                      key={track.id}
-                      track={track}
-                      index={index}
-                      isCurrent={index === sessionState.currentTrackIndex}
-                      isPlaying={sessionState.isPlaying && index === sessionState.currentTrackIndex}
-                      onPlay={() => playbackControl('jump', index)}
-                      onRemove={() => removeFromQueue(track.id)}
-                      formatDuration={formatDuration}
-                    />
-                  ))}
-                </div>
+                /* Queue list when not searching */
+                sessionState.queue.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+                    <div
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        margin: '0 auto var(--space-lg)',
+                        borderRadius: '50%',
+                        background: 'var(--bg-elevated)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+                        <path d="M9 18V5l12-2v13" />
+                        <circle cx="6" cy="18" r="3" />
+                        <circle cx="18" cy="16" r="3" />
+                      </svg>
+                    </div>
+                    <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                      Queue is empty
+                    </h3>
+                    <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
+                      Search for songs above to add them
+                    </p>
+                    
+                    {/* Prompt host to login if not authenticated */}
+                    {sessionState.isHost && authChecked && !isAuthenticated && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="card"
+                        style={{
+                          maxWidth: '400px',
+                          margin: '0 auto',
+                          padding: 'var(--space-lg)',
+                          borderColor: 'var(--accent-cyan)',
+                          background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.05) 0%, rgba(0, 212, 170, 0.05) 100%)',
+                        }}
+                      >
+                        <div style={{ marginBottom: 'var(--space-md)' }}>
+                          <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--space-xs)' }}>
+                            Connect Tidal
+                          </h4>
+                          <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
+                            Login to search the real Tidal catalog and access your playlists
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleTidalLogin}
+                          className="btn btn-primary"
+                          style={{ width: '100%' }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
+                            <path d="M12 0L8 4h8l-4-4zM0 8l4 4-4 4 4 4 4-4 4 4 4-4 4 4 4-4-4-4 4-4-4-4-4 4-4-4-4 4-4-4z"/>
+                          </svg>
+                          Login with Tidal
+                        </button>
+                      </motion.div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                    <div className="text-muted" style={{ fontSize: '0.875rem', padding: '0 var(--space-xs)' }}>
+                      {sessionState.queue.length} {sessionState.queue.length === 1 ? 'track' : 'tracks'} in queue
+                    </div>
+                    {sessionState.queue.map((track, index) => (
+                      <QueueItem
+                        key={track.id}
+                        track={track}
+                        index={index}
+                        isCurrent={index === sessionState.currentTrackIndex}
+                        isPlaying={sessionState.isPlaying && index === sessionState.currentTrackIndex}
+                        onPlay={() => playbackControl('jump', index)}
+                        onRemove={() => removeFromQueue(track.id)}
+                        formatDuration={formatDuration}
+                      />
+                    ))}
+                  </div>
+                )
               )}
             </motion.div>
           ) : (
@@ -621,112 +749,7 @@ export function SessionPage() {
           </motion.button>
         )}
 
-        {/* Search FAB */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowSearch(true)}
-          style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            background: 'var(--gradient-glow)',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'var(--shadow-glow-cyan)',
-          }}
-        >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--bg-primary)' }}>
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-        </motion.button>
       </div>
-
-      {/* Search modal */}
-      <AnimatePresence>
-        {showSearch && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.8)',
-              backdropFilter: 'blur(10px)',
-              zIndex: 100,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div style={{ padding: 'var(--space-lg)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <button onClick={() => setShowSearch(false)} className="btn btn-ghost btn-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
-                <input
-                  type="text"
-                  className="input input-lg"
-                  placeholder="Search for songs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-                  style={{ flex: 1 }}
-                />
-              </div>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-lg)' }}>
-              {isSearching && (
-                <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    style={{
-                      width: '30px',
-                      height: '30px',
-                      margin: '0 auto',
-                      border: '2px solid var(--bg-elevated)',
-                      borderTopColor: 'var(--accent-cyan)',
-                      borderRadius: '50%',
-                    }}
-                  />
-                </div>
-              )}
-
-              {!isSearching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                <p className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-                  No results found
-                </p>
-              )}
-
-              {!isSearching && searchResults.length === 0 && searchQuery.length < 2 && (
-                <p className="text-muted" style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-                  Type at least 2 characters to search
-                </p>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                {searchResults.map((track) => (
-                  <SearchResultItem
-                    key={track.id}
-                    track={track}
-                    onAddToQueue={() => handleAddTrack(track, 'end')}
-                    onPlayNext={() => handleAddTrack(track, 'next')}
-                    formatDuration={formatDuration}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Share modal */}
       <AnimatePresence>
@@ -1060,7 +1083,7 @@ export function SessionPage() {
                       <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
                         <button
                           onClick={() => handleAddPlaylistTrack(track, 'next')}
-                          className="btn btn-primary btn-sm"
+                          className="btn btn-teal btn-sm"
                           title="Play Next"
                         >
                           Next
@@ -1092,6 +1115,7 @@ export function SessionPage() {
           onPause={() => playbackControl('pause')}
           onNext={() => playbackControl('next')}
           onPrevious={() => playbackControl('previous')}
+          onOpenInTidal={() => currentTrack.tidalId && openInTidal(currentTrack.tidalId)}
           formatDuration={formatDuration}
         />
       )}
@@ -1285,7 +1309,7 @@ function SearchResultItem({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
         <button
           onClick={onPlayNext}
-          className="btn btn-primary btn-sm"
+          className="btn btn-teal btn-sm"
           style={{ whiteSpace: 'nowrap' }}
         >
           Play Next
@@ -1311,6 +1335,7 @@ function NowPlayingBar({
   onPause,
   onNext,
   onPrevious,
+  onOpenInTidal,
   formatDuration,
 }: {
   track: Track;
@@ -1320,6 +1345,7 @@ function NowPlayingBar({
   onPause: () => void;
   onNext: () => void;
   onPrevious: () => void;
+  onOpenInTidal: () => void;
   formatDuration: (s: number) => string;
 }) {
   return (
@@ -1330,11 +1356,12 @@ function NowPlayingBar({
     >
       <div className="container">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-          {/* Album art */}
+          {/* Album art - clickable to open in Tidal */}
           <motion.img
+            onClick={onOpenInTidal}
             animate={isPlaying ? { rotate: 360 } : {}}
             transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            src={track.albumArt}
+            src={track.albumArt || undefined}
             alt={track.album}
             style={{
               width: '56px',
@@ -1342,7 +1369,10 @@ function NowPlayingBar({
               borderRadius: isPlaying ? '50%' : 'var(--radius-sm)',
               objectFit: 'cover',
               transition: 'border-radius 0.3s',
+              cursor: 'pointer',
+              background: track.albumArt ? undefined : 'var(--bg-elevated)',
             }}
+            title="Open in Tidal"
           />
 
           {/* Track info */}
@@ -1371,59 +1401,75 @@ function NowPlayingBar({
             </div>
           </div>
 
-          {/* Playback controls (host only) */}
-          {isHost && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <button onClick={onPrevious} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="19 20 9 12 19 4 19 20" />
-                  <line x1="5" y1="19" x2="5" y2="5" />
-                </svg>
-              </button>
-              
-              <button
-                onClick={isPlaying ? onPause : onPlay}
-                className="btn btn-primary btn-icon"
-                style={{ width: '48px', height: '48px' }}
-              >
-                {isPlaying ? (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="6" y="4" width="4" height="16" />
-                    <rect x="14" y="4" width="4" height="16" />
+          {/* Playback controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            {isHost && (
+              <>
+                <button onClick={onPrevious} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="19 20 9 12 19 4 19 20" />
+                    <line x1="5" y1="19" x2="5" y2="5" />
                   </svg>
-                ) : (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                )}
-              </button>
-              
-              <button onClick={onNext} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="5 4 15 12 5 20 5 4" />
-                  <line x1="19" y1="5" x2="19" y2="19" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Duration for non-hosts */}
-          {!isHost && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              {isPlaying && (
-                <motion.div
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  style={{ color: 'var(--accent-green)', fontSize: '0.875rem' }}
+                </button>
+                
+                <button
+                  onClick={isPlaying ? onPause : onPlay}
+                  className="btn btn-ghost btn-icon"
+                  style={{ width: '40px', height: '40px' }}
+                  title={isPlaying ? 'Pause' : 'Play'}
                 >
-                  ● Playing
-                </motion.div>
-              )}
-              <span className="text-muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
-                {formatDuration(track.duration)}
-              </span>
-            </div>
-          )}
+                  {isPlaying ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="6" y="4" width="4" height="16" />
+                      <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  )}
+                </button>
+                
+                <button onClick={onNext} className="btn btn-ghost btn-icon" style={{ width: '40px', height: '40px' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 4 15 12 5 20 5 4" />
+                    <line x1="19" y1="5" x2="19" y2="19" />
+                  </svg>
+                </button>
+              </>
+            )}
+            
+            {/* Play in Tidal button - always visible */}
+            <button
+              onClick={onOpenInTidal}
+              className="btn btn-primary"
+              style={{ 
+                padding: '8px 16px',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Play in Tidal"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+              </svg>
+              Play in Tidal
+            </button>
+
+            {/* Playing indicator for non-hosts */}
+            {!isHost && isPlaying && (
+              <motion.div
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{ color: 'var(--accent-green)', fontSize: '0.875rem', marginLeft: '8px' }}
+              >
+                ● Playing
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
