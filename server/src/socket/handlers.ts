@@ -1,9 +1,9 @@
 // WebSocket event handlers
 import { Server, Socket } from 'socket.io';
 import { nanoid } from 'nanoid';
-import { Track } from '../types';
-import { sessions } from '../routes/sessions';
-import { pendingAuth } from '../routes/auth';
+import { Track } from '../types/index.js';
+import { sessions } from '../routes/sessions.js';
+import { pendingAuth } from '../routes/auth.js';
 
 export function setupSocketHandlers(io: Server): void {
   io.on('connection', (socket: Socket) => {

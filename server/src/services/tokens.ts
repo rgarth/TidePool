@@ -1,7 +1,7 @@
 // Token persistence and management
 import fs from 'fs';
 import path from 'path';
-import { UserTokens } from '../types';
+import { UserTokens } from '../types/index.js';
 
 // Token persistence file (for development - survives server restarts)
 const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');

@@ -2,7 +2,7 @@
 import { Router, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import { Server } from 'socket.io';
-import { getHostAccessToken, hostTokens } from '../services/tokens';
+import { getHostAccessToken, hostTokens } from '../services/tokens.js';
 import {
   searchTidal,
   createPlaylist,
@@ -11,8 +11,8 @@ import {
   getPlaylistWithFullTracks,
   getPlaylistInfo,
   parseTrackData,
-} from '../services/tidal';
-import { sessions } from './sessions';
+} from '../services/tidal.js';
+import { sessions } from './sessions.js';
 
 const router = Router();
 

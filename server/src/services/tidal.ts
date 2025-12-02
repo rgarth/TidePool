@@ -1,6 +1,6 @@
 // Tidal API service functions
 import { nanoid } from 'nanoid';
-import { Track } from '../types';
+import { Track } from '../types/index.js';
 
 // Search Tidal catalog
 export async function searchTidal(accessToken: string, query: string, countryCode: string, limit = 20): Promise<any> {

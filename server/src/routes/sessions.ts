@@ -1,7 +1,7 @@
 // Session management routes
 import { Router, Request, Response } from 'express';
-import { Session } from '../types';
-import { CLIENT_URL } from '../services/tokens';
+import { Session } from '../types/index.js';
+import { CLIENT_URL } from '../services/tokens.js';
 
 const router = Router();
 

@@ -13,9 +13,9 @@ import {
   hostTokens,
   saveTokens,
   getHostAccessToken,
-} from '../services/tokens';
-import { PendingAuth } from '../types';
-import { sessions } from './sessions';
+} from '../services/tokens.js';
+import { PendingAuth } from '../types/index.js';
+import { sessions } from './sessions.js';
 
 const router = Router();
 

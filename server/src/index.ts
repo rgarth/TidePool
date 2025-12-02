@@ -15,15 +15,15 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Import configuration
-import { CLIENT_URL } from './services/tokens';
+import { CLIENT_URL } from './services/tokens.js';
 
 // Import routes
-import authRoutes from './routes/auth';
-import sessionRoutes from './routes/sessions';
-import tidalRoutes, { setSocketIO } from './routes/tidal';
+import authRoutes from './routes/auth.js';
+import sessionRoutes from './routes/sessions.js';
+import tidalRoutes, { setSocketIO } from './routes/tidal.js';
 
 // Import socket handlers
-import { setupSocketHandlers } from './socket/handlers';
+import { setupSocketHandlers } from './socket/handlers.js';
 
 // Initialize Express app
 const app = express();
@@ -49,8 +49,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Health check
-app.get('/api/health', (req, res) => {
-  const { sessions } = require('./routes/sessions');
+app.get('/api/health', async (req, res) => {
+  const { sessions } = await import('./routes/sessions.js');
   res.json({ status: 'ok', sessions: sessions.size });
 });
 
