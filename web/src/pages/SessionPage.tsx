@@ -273,6 +273,12 @@ export function SessionPage() {
       
       const data = await response.json();
       const playlistName = data.playlistName;
+      const isEmpty = !data.tracks || data.tracks.length === 0;
+      
+      // If playlist is empty, it's ready immediately (nothing to wait for)
+      if (isEmpty) {
+        setPlaylistReady(true);
+      }
       
       // Step 2: Clear input field
       setExistingPlaylistId('');
