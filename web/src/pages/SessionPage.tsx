@@ -28,7 +28,7 @@ export function SessionPage() {
     joinSession,
     setPlaylist,
     startLoading,
-    clearDeletedFlag,
+    clearUnavailableFlag,
   } = useSocket();
 
   const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
@@ -231,11 +231,8 @@ export function SessionPage() {
     
     console.log('Loading playlist:', cleanId);
     
-    // Clear tracks and show loading state
-    startLoading();
     setIsLoadingExisting(true);
     setExistingPlaylistError('');
-    setShowPlaylistPicker(false);
     
     try {
       // Verify playlist exists and get its info from Tidal API
@@ -244,13 +241,17 @@ export function SessionPage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 404) {
-          throw new Error('Playlist not found yet. Tidal may still be syncing - try again in a moment.');
+          throw new Error('Playlist not found or no longer accessible.');
         }
         throw new Error(errorData.error || 'Playlist not found or not accessible');
       }
       
       const data = await response.json();
       const playlistName = data.playlistName;
+      
+      // Success! Now we can close picker and switch to loading state
+      setShowPlaylistPicker(false);
+      startLoading();
       
       // Clear input field
       setExistingPlaylistId('');
@@ -271,6 +272,7 @@ export function SessionPage() {
       }, 500);
     } catch (err: any) {
       setExistingPlaylistError(err.message || 'Failed to load playlist');
+      // Stay in picker - user can try again or create new
     } finally {
       setIsLoadingExisting(false);
     }
@@ -395,6 +397,7 @@ export function SessionPage() {
         participantCount={sessionState.participants.length}
         activeTab={activeTab}
         searchQuery={searchQuery}
+        searchDisabled={playlistDeleted}
         onCopyCode={copyJoinUrl}
         onRefresh={refreshPlaylistFromTidal}
         onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
@@ -428,7 +431,7 @@ export function SessionPage() {
                 onDeleteTrack={handleDeleteTrack}
                 isUnavailable={playlistDeleted}
                 onSelectNewPlaylist={() => {
-                  clearDeletedFlag();
+                  clearUnavailableFlag();
                   setShowPlaylistPicker(true);
                 }}
               />

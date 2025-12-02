@@ -16,8 +16,10 @@ interface UseSocketReturn {
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
   /** Call before loading a playlist to clear tracks and show loading state */
   startLoading: () => void;
-  /** Clear the deleted flag (when switching to a new playlist) */
-  clearDeletedFlag: () => void;
+  /** Call when loading fails (e.g., 404) to stop the spinner */
+  stopLoading: () => void;
+  /** Clear the unavailable flag (when switching to a new playlist) */
+  clearUnavailableFlag: () => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -132,12 +134,17 @@ export function useSocket(): UseSocketReturn {
   // Call before loading a new playlist - clears tracks and sets loading state
   const startLoading = useCallback(() => {
     setIsAwaitingSync(true);
-    setPlaylistDeleted(false); // Clear deleted flag
+    setPlaylistDeleted(false);
     setSessionState((prev) => prev ? { ...prev, tracks: [] } : null);
   }, []);
 
-  // Clear the deleted flag (when user acknowledges or switches playlist)
-  const clearDeletedFlag = useCallback(() => {
+  // Call when loading fails (e.g., fetch returns 404) to stop the spinner
+  const stopLoading = useCallback(() => {
+    setIsAwaitingSync(false);
+  }, []);
+
+  // Clear the unavailable flag (when user acknowledges or switches playlist)
+  const clearUnavailableFlag = useCallback(() => {
     setPlaylistDeleted(false);
   }, []);
 
@@ -151,6 +158,7 @@ export function useSocket(): UseSocketReturn {
     addToPlaylist,
     setPlaylist,
     startLoading,
-    clearDeletedFlag,
+    stopLoading,
+    clearUnavailableFlag,
   };
 }

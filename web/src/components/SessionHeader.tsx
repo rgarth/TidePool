@@ -12,6 +12,8 @@ interface SessionHeaderProps {
   participantCount: number;
   activeTab: 'playlist' | 'participants';
   searchQuery: string;
+  /** Disable search when playlist is unavailable */
+  searchDisabled?: boolean;
   onCopyCode: () => void;
   onRefresh: () => void;
   onOpenPlaylistPicker: () => void;
@@ -33,6 +35,7 @@ export function SessionHeader({
   participantCount,
   activeTab,
   searchQuery,
+  searchDisabled,
   onCopyCode,
   onRefresh,
   onOpenPlaylistPicker,
@@ -126,17 +129,19 @@ export function SessionHeader({
       </div>
 
       {/* Search input */}
-      <div style={{ position: 'relative', zIndex: 15 }}>
+      <div style={{ position: 'relative', zIndex: 15, opacity: searchDisabled ? 0.5 : 1 }}>
         <input
           type="text"
           className="input"
-          placeholder="Search for songs to add..."
+          placeholder={searchDisabled ? "Playlist unavailable" : "Search for songs to add..."}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
+          disabled={searchDisabled}
           style={{
             width: '100%',
             paddingLeft: '44px',
             paddingRight: searchQuery ? '44px' : undefined,
+            cursor: searchDisabled ? 'not-allowed' : undefined,
           }}
         />
         <SearchIcon 

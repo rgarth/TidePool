@@ -212,6 +212,16 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
   } catch (error: any) {
     console.error('>>> Add tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
+      // Notify all clients in session that playlist is gone
+      if (sessionId && io) {
+        const session = sessions.get(sessionId.toUpperCase());
+        if (session) {
+          io.to(session.id).emit('playlist_unavailable', { 
+            playlistId,
+            message: 'This playlist is no longer accessible on Tidal',
+          });
+        }
+      }
       return res.status(404).json({ error: 'Playlist not found or no longer accessible.', unavailable: true });
     }
     res.status(500).json({ error: error.message });
@@ -252,6 +262,16 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   } catch (error: any) {
     console.error('>>> Remove tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
+      // Notify all clients in session that playlist is gone
+      if (sessionId && io) {
+        const session = sessions.get(sessionId.toUpperCase());
+        if (session) {
+          io.to(session.id).emit('playlist_unavailable', { 
+            playlistId,
+            message: 'This playlist is no longer accessible on Tidal',
+          });
+        }
+      }
       return res.status(404).json({ error: 'Playlist not found or no longer accessible.', unavailable: true });
     }
     res.status(500).json({ error: error.message });
