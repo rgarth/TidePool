@@ -13,9 +13,10 @@ interface MenuItem {
 interface DropdownMenuProps {
   items: MenuItem[];
   trigger?: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
+export function DropdownMenu({ items, trigger, footer }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +84,7 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
                 {item.label}
               </button>
             ))}
+            {footer}
           </motion.div>
         )}
       </AnimatePresence>

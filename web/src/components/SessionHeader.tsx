@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { DropdownMenu } from './DropdownMenu';
+import { ThemePicker } from './ThemePicker';
 import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon } from './Icons';
 
 interface SessionHeaderProps {
@@ -87,7 +88,7 @@ export function SessionHeader({
           <button onClick={onShare} className="btn btn-secondary btn-sm">
             Invite
           </button>
-          <DropdownMenu items={menuItems} />
+          <DropdownMenu items={menuItems} footer={<ThemePicker />} />
         </div>
       </div>
 
