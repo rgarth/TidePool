@@ -15,6 +15,7 @@ export interface Session {
   id: string;
   hostId: string;
   hostToken?: string; // Reference to host's auth token (so guests can use it)
+  hostName?: string;  // Tidal username of the host
   name: string;
   // Playlist info (created in Tidal)
   tidalPlaylistId?: string;
@@ -31,6 +32,7 @@ export interface UserTokens {
   expiresAt: number;
   countryCode: string;
   userId: string;
+  username?: string;
 }
 
 export interface PendingAuth {

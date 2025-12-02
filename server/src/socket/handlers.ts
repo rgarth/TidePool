@@ -29,7 +29,9 @@ export function setupSocketHandlers(io: Server): void {
         isHost = true;
       }
       
-      session.participants.set(socket.id, displayName);
+      // Use Tidal username for host if available, otherwise use provided displayName
+      const actualDisplayName = (asHost && session.hostName) ? session.hostName : displayName;
+      session.participants.set(socket.id, actualDisplayName);
       
       // Send current state to the joining client
       socket.emit('session_state', {
@@ -48,7 +50,7 @@ export function setupSocketHandlers(io: Server): void {
         participants: Array.from(session.participants.values()),
       });
       
-      console.log(`${displayName} joined session ${session.id} as ${isHost ? 'host' : 'guest'}`);
+      console.log(`${actualDisplayName} joined session ${session.id} as ${isHost ? 'host' : 'guest'}`);
     });
 
     // Add track to playlist

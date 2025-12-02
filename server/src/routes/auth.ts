@@ -122,6 +122,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     // Get user info
     let countryCode = 'US';
     let userId = '';
+    let username = '';
     
     const userUrls = [
       'https://openapi.tidal.com/v2/users/me',
@@ -141,12 +142,12 @@ router.get('/callback', async (req: Request, res: Response) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        console.log('>>> RAW USER DATA FROM TIDAL:', JSON.stringify(userData, null, 2));
         const data = userData.data || userData;
         const attrs = data.attributes || data;
         countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
         userId = data.id?.toString() || attrs.userId?.toString() || data.userId?.toString() || '';
-        console.log(`User country: ${countryCode}, userId: ${userId}`);
+        username = attrs.username || '';
+        console.log(`User: ${username}, country: ${countryCode}, userId: ${userId}`);
         break;
       }
     }
@@ -158,16 +159,18 @@ router.get('/callback', async (req: Request, res: Response) => {
       expiresAt: Date.now() + tokens.expires_in * 1000,
       countryCode,
       userId,
+      username,
     });
     
     saveTokens(hostTokens);
 
-    console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... for session ${pending.sessionId}`);
+    console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... (${username}) for session ${pending.sessionId}`);
     
     // Store hostToken in session so guests can use it
     const session = sessions.get(pending.sessionId.toUpperCase());
     if (session) {
       session.hostToken = pending.hostToken;
+      session.hostName = username || 'Host'; // Store username for display
       console.log(`Stored hostToken in session ${pending.sessionId}`);
     }
     
