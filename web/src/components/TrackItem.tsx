@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { SpinnerIcon, TrashIcon } from './Icons';
 import type { Track } from '../types';
 
 interface TrackItemProps {
@@ -60,16 +61,10 @@ export function TrackItem({ track, index, isHost, isDeleting, onDelete, formatDu
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
+              <SpinnerIcon size={18} />
             </motion.div>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18" />
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-            </svg>
+            <TrashIcon size={18} />
           )}
         </button>
       )}
