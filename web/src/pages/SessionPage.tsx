@@ -100,48 +100,20 @@ export function SessionPage() {
     }
   }, [sessionState?.isHost, isAuthenticated, sessionState?.tidalPlaylistId]);
 
-  // ============================================================================
-  // PLAYLIST LOADING STATE MANAGEMENT
-  // ============================================================================
-  // 
-  // There are multiple async operations that can load playlist data:
-  //   1. isLoadingExisting  - User clicked "Resume" or "Load" to load an existing playlist
-  //   2. isCreatingPlaylist - User clicked "Create" to make a new playlist
-  //   3. isRefreshing       - User clicked refresh button to sync from Tidal
-  //   4. isWaitingForSync   - We've linked a playlist and are waiting for socket to deliver tracks
-  //
-  // The loading flow for "Resume" (most complex case):
-  //   1. User clicks Resume
-  //   2. isLoadingExisting = true (API call starts)
-  //   3. API returns playlist info
-  //   4. isWaitingForSync = true (if playlist has tracks)
-  //   5. setPlaylist() triggers socket events
-  //   6. isLoadingExisting = false (API call done)
-  //   7. Socket emits playlist_linked → clears sessionState.tracks to []
-  //   8. Socket emits playlist_synced → populates sessionState.tracks
-  //   9. isWaitingForSync = false (tracks arrived)
-  //
-  // The tricky part: On SECOND Resume, old tracks exist in sessionState.
-  // We must NOT clear isWaitingForSync just because old tracks are present.
-  // We wait until isLoadingExisting is false AND new tracks arrive.
-  // ============================================================================
-
+  // Simple loading state: are we waiting for playlist data?
+  // Set false when starting to load, set true when socket delivers tracks
+  const [playlistReady, setPlaylistReady] = useState(!sessionState?.tidalPlaylistId);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isWaitingForSync, setIsWaitingForSync] = useState(false);
   
-  // Clear isWaitingForSync when NEW tracks arrive from socket
-  // Key: Don't clear while isLoadingExisting is true (old tracks may be present)
+  // Reset to "ready" when initial session loads with a playlist
   useEffect(() => {
-    const hasNewTracks = sessionState?.tracks && sessionState.tracks.length > 0;
-    const loadingComplete = !isLoadingExisting;
-    
-    if (isWaitingForSync && loadingComplete && hasNewTracks) {
-      setIsWaitingForSync(false);
+    if (sessionState?.tidalPlaylistId && sessionState.tracks.length > 0) {
+      setPlaylistReady(true);
     }
-  }, [isWaitingForSync, isLoadingExisting, sessionState?.tracks]);
+  }, [sessionState?.tidalPlaylistId, sessionState?.tracks?.length]);
   
-  // Combined loading state - true if ANY loading operation is in progress
-  const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing || isWaitingForSync;
+  // Show loading spinner when not ready OR actively fetching
+  const isLoadingPlaylist = !playlistReady || isLoadingExisting || isCreatingPlaylist || isRefreshing;
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -229,7 +201,8 @@ export function SessionPage() {
       if (!response.ok) throw new Error('Failed to create playlist');
       
       const data = await response.json();
-      // Pass playlist name so it updates session name too
+      // New playlist is empty, so it's ready immediately
+      setPlaylistReady(true);
       setPlaylist(data.id, data.listenUrl, playlistName);
       setShowPlaylistPicker(false);
       setNewPlaylistName(''); // Clear input
@@ -296,16 +269,11 @@ export function SessionPage() {
       
       const data = await response.json();
       const playlistName = data.playlistName;
-      const hasTracks = data.tracks && data.tracks.length > 0;
       
-      // Step 2: Prepare UI for loading state
-      // IMPORTANT: We use flushSync here to force React to render the loading state
-      // BEFORE we trigger socket events. Without this, React batches all state updates
-      // and the user never sees the loading spinner.
+      // Step 2: Reset to loading state before triggering socket
+      // Set playlistReady=false so we show loading, not stale tracks
       flushSync(() => {
-        if (hasTracks) {
-          setIsWaitingForSync(true);  // We know tracks exist, wait for socket to deliver them
-        }
+        setPlaylistReady(false);
         setShowPlaylistPicker(false);
         setExistingPlaylistId('');
       });
