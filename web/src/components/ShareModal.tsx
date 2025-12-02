@@ -7,14 +7,10 @@ interface ShareModalProps {
   copied: boolean;
   onClose: () => void;
   onCopyLink: () => void;
+  onCopyCode: () => void;
 }
 
-export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: ShareModalProps) {
-  const copyCode = () => {
-    if (sessionId) {
-      navigator.clipboard.writeText(sessionId);
-    }
-  };
+export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink, onCopyCode }: ShareModalProps) {
 
   return (
     <AnimatePresence>
@@ -48,7 +44,7 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: S
             <code 
               className="session-code-lg mb-lg" 
               style={{ display: 'inline-block', cursor: 'pointer' }}
-              onClick={copyCode}
+              onClick={onCopyCode}
             >
               {sessionId}
             </code>

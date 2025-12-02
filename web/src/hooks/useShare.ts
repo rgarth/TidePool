@@ -24,6 +24,14 @@ export function useShare({ sessionId, playlistUrl }: UseShareProps) {
     setTimeout(() => setCopied(false), 2000);
   }, [sessionId]);
 
+  const copyCode = useCallback(async () => {
+    if (sessionId) {
+      await navigator.clipboard.writeText(sessionId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [sessionId]);
+
   const openInTidal = useCallback(() => {
     if (playlistUrl) {
       window.open(playlistUrl, '_blank');
@@ -36,7 +44,9 @@ export function useShare({ sessionId, playlistUrl }: UseShareProps) {
     openShareModal,
     closeShareModal,
     copyJoinUrl,
+    copyCode,
     openInTidal,
   };
 }
+
 

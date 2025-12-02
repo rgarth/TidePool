@@ -197,6 +197,7 @@ export function SessionPage() {
         copied={share.copied}
         onClose={share.closeShareModal}
         onCopyLink={share.copyJoinUrl}
+        onCopyCode={share.copyCode}
       />
     </div>
   );
