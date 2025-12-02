@@ -77,6 +77,14 @@ export function setStoredTheme(themeId: string): void {
   localStorage.setItem(THEME_STORAGE_KEY, themeId);
 }
 
+// Convert hex to rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function applyTheme(themeId: string): void {
   const theme = THEME_COLORS.find(t => t.id === themeId) || THEME_COLORS[0];
   const root = document.documentElement;
@@ -88,6 +96,10 @@ export function applyTheme(themeId: string): void {
   root.style.setProperty('--shadow-glow', `0 0 20px ${theme.glow}`);
   root.style.setProperty('--shadow-glow-strong', `0 0 30px ${theme.glow.replace('0.5', '0.6')}`);
   root.style.setProperty('--gradient-glow', `linear-gradient(135deg, ${theme.accent} 0%, ${theme.secondary} 100%)`);
+  
+  // Background ambient glow
+  root.style.setProperty('--bg-glow-primary', hexToRgba(theme.accent, 0.1));
+  root.style.setProperty('--bg-glow-secondary', hexToRgba(theme.accent, 0.15));
 }
 
 // Initialize theme on load
