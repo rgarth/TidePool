@@ -1,0 +1,101 @@
+// Token persistence and management
+import fs from 'fs';
+import path from 'path';
+import { UserTokens } from '../types';
+
+// Token persistence file (for development - survives server restarts)
+const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');
+
+// Load tokens from disk on startup
+export function loadTokens(): Map<string, UserTokens> {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf-8'));
+      console.log(`Loaded ${Object.keys(data).length} tokens from disk`);
+      return new Map(Object.entries(data));
+    }
+  } catch (e) {
+    console.error('Failed to load tokens:', e);
+  }
+  return new Map();
+}
+
+// Save tokens to disk
+export function saveTokens(tokens: Map<string, UserTokens>): void {
+  try {
+    const data = Object.fromEntries(tokens);
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Failed to save tokens:', e);
+  }
+}
+
+// Host tokens storage (loaded from disk on startup)
+export const hostTokens = loadTokens();
+
+// Tidal configuration
+export const TIDAL_CLIENT_ID = process.env.TIDAL_CLIENT_ID;
+export const TIDAL_CLIENT_SECRET = process.env.TIDAL_CLIENT_SECRET;
+export const TIDAL_AUTH_BASE = 'https://login.tidal.com';
+export const TIDAL_TOKEN_URL = 'https://auth.tidal.com/v1/oauth2/token';
+export const TIDAL_API_URL = 'https://openapi.tidal.com';
+export const REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:3001/api/auth/callback';
+export const CLIENT_URL = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// OAuth scopes
+export const TIDAL_SCOPES = [
+  'user.read',
+  'search.read',
+  'playlists.read',
+  'playlists.write',
+].join(' ');
+
+// Refresh access token
+export async function refreshAccessToken(refreshToken: string): Promise<any> {
+  const credentials = Buffer.from(`${TIDAL_CLIENT_ID}:${TIDAL_CLIENT_SECRET}`).toString('base64');
+  
+  const response = await fetch(TIDAL_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Token refresh failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Get host's access token (with auto-refresh)
+export async function getHostAccessToken(hostToken: string): Promise<{ token: string; countryCode: string; userId: string } | null> {
+  const tokens = hostTokens.get(hostToken);
+  if (!tokens) return null;
+  
+  // Refresh if expired (with 5 min buffer)
+  if (tokens.expiresAt < Date.now() + 300000) {
+    try {
+      const refreshed = await refreshAccessToken(tokens.refreshToken);
+      hostTokens.set(hostToken, {
+        ...tokens,
+        accessToken: refreshed.access_token,
+        expiresAt: Date.now() + refreshed.expires_in * 1000,
+      });
+      saveTokens(hostTokens);
+      return { token: refreshed.access_token, countryCode: tokens.countryCode, userId: tokens.userId };
+    } catch (err) {
+      console.error('Failed to refresh token:', err);
+      hostTokens.delete(hostToken);
+      return null;
+    }
+  }
+  
+  return { token: tokens.accessToken, countryCode: tokens.countryCode, userId: tokens.userId };
+}
+
