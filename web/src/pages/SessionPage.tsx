@@ -23,9 +23,10 @@ export function SessionPage() {
     isConnected,
     sessionState,
     error,
+    isAwaitingSync,
     joinSession,
     setPlaylist,
-    resetForLoad,
+    startLoading,
   } = useSocket();
 
   const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
@@ -86,20 +87,10 @@ export function SessionPage() {
     }
   }, [sessionState?.isHost, isAuthenticated, sessionState?.tidalPlaylistId]);
 
-  // Simple loading state: are we waiting for playlist data?
-  // Set false when starting to load, set true when socket delivers tracks
-  const [playlistReady, setPlaylistReady] = useState(!sessionState?.tidalPlaylistId);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Reset to "ready" when initial session loads with a playlist
-  useEffect(() => {
-    if (sessionState?.tidalPlaylistId && sessionState.tracks.length > 0) {
-      setPlaylistReady(true);
-    }
-  }, [sessionState?.tidalPlaylistId, sessionState?.tracks?.length]);
-  
-  // Show loading spinner when not ready OR actively fetching
-  const isLoadingPlaylist = !playlistReady || isLoadingExisting || isCreatingPlaylist || isRefreshing;
+  // Show loading when: awaiting socket sync, API calls in progress, or refreshing
+  const isLoadingPlaylist = isAwaitingSync || isLoadingExisting || isCreatingPlaylist || isRefreshing;
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -174,6 +165,7 @@ export function SessionPage() {
     const playlistName = newPlaylistName.trim() || generateRandomName();
     
     setIsCreatingPlaylist(true);
+    startLoading(); // Clear tracks and show loading
     try {
       const response = await apiFetch('/api/tidal/playlists', {
         method: 'POST',
@@ -187,8 +179,6 @@ export function SessionPage() {
       if (!response.ok) throw new Error('Failed to create playlist');
       
       const data = await response.json();
-      // New playlist is empty, so it's ready immediately
-      setPlaylistReady(true);
       setPlaylist(data.id, data.listenUrl, playlistName);
       setShowPlaylistPicker(false);
       setNewPlaylistName(''); // Clear input
@@ -239,15 +229,14 @@ export function SessionPage() {
     
     console.log('Loading playlist:', cleanId);
     
-    // Reset all state for fresh load - clears old tracks and shows loading
-    resetForLoad();
-    setPlaylistReady(false);
+    // Clear tracks and show loading state
+    startLoading();
     setIsLoadingExisting(true);
     setExistingPlaylistError('');
     setShowPlaylistPicker(false);
     
     try {
-      // Step 1: Verify playlist exists and get its info from Tidal API
+      // Verify playlist exists and get its info from Tidal API
       const response = await apiFetch(`/api/tidal/playlists/${cleanId}/tracks`);
       
       if (!response.ok) {
@@ -260,14 +249,8 @@ export function SessionPage() {
       
       const data = await response.json();
       const playlistName = data.playlistName;
-      const isEmpty = !data.tracks || data.tracks.length === 0;
       
-      // If playlist is empty, it's ready immediately (nothing to wait for)
-      if (isEmpty) {
-        setPlaylistReady(true);
-      }
-      
-      // Step 2: Clear input field
+      // Clear input field
       setExistingPlaylistId('');
       
       // Step 3: Link playlist to session via socket

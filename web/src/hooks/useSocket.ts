@@ -7,10 +7,13 @@ interface UseSocketReturn {
   isConnected: boolean;
   sessionState: SessionState | null;
   error: string | null;
+  /** True when we're waiting for playlist_synced after a playlist change */
+  isAwaitingSync: boolean;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
   addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
-  resetForLoad: () => void;  // Clear tracks to prepare for new load
+  /** Call before loading a playlist to clear tracks and show loading state */
+  startLoading: () => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -18,6 +21,7 @@ export function useSocket(): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAwaitingSync, setIsAwaitingSync] = useState(false);
 
   useEffect(() => {
     // Connect to WebSocket server
@@ -52,9 +56,10 @@ export function useSocket(): UseSocketReturn {
       setSessionState((prev) => prev ? { ...prev, tracks: data.tracks } : null);
     });
 
-    // Playlist synced from Tidal (source of truth)
+    // Playlist synced from Tidal (source of truth) - loading complete
     socket.on('playlist_synced', (data: { tracks: Track[]; playlistName?: string }) => {
       console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks', data.playlistName ? `(${data.playlistName})` : '');
+      setIsAwaitingSync(false); // Loading complete
       setSessionState((prev) => prev ? { 
         ...prev, 
         tracks: data.tracks,
@@ -112,9 +117,9 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
-  // Reset state to prepare for loading a new playlist
-  // Call this BEFORE starting any playlist load operation
-  const resetForLoad = useCallback(() => {
+  // Call before loading a new playlist - clears tracks and sets loading state
+  const startLoading = useCallback(() => {
+    setIsAwaitingSync(true);
     setSessionState((prev) => prev ? { ...prev, tracks: [] } : null);
   }, []);
 
@@ -122,9 +127,10 @@ export function useSocket(): UseSocketReturn {
     isConnected,
     sessionState,
     error,
+    isAwaitingSync,
     joinSession,
     addToPlaylist,
     setPlaylist,
-    resetForLoad,
+    startLoading,
   };
 }
