@@ -260,11 +260,9 @@ export function SessionPage() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        // If playlist not found (404), clear it from "last used"
         if (response.status === 404) {
-          localStorage.removeItem('tidepool_last_playlist');
-          setLastPlaylistId(null);
-          throw new Error('Playlist not found. It may have been deleted from Tidal.');
+          // Don't clear localStorage - might just be Tidal sync delay
+          throw new Error('Playlist not found yet. Tidal may still be syncing - try again in a moment.');
         }
         throw new Error(errorData.error || 'Playlist not found or not accessible');
       }
@@ -513,15 +511,26 @@ export function SessionPage() {
                       gap: 'var(--space-sm)',
                     }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                      <path d="M3 3v5h5" />
-                    </svg>
-                    Resume Last Playlist
+                    {isLoadingExisting ? (
+                      <>Loading...</>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                          <path d="M3 3v5h5" />
+                        </svg>
+                        Resume Last Playlist
+                      </>
+                    )}
                   </button>
                   <p className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'center', marginTop: 'var(--space-xs)' }}>
                     ID: {lastPlaylistId.substring(0, 8)}...
                   </p>
+                  {existingPlaylistError && (
+                    <p style={{ color: '#ff6b6b', fontSize: '0.8rem', marginTop: 'var(--space-sm)', textAlign: 'center' }}>
+                      {existingPlaylistError}
+                    </p>
+                  )}
                 </div>
               )}
               
