@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -271,16 +272,19 @@ export function SessionPage() {
       const playlistName = data.playlistName;
       const hasTracks = data.tracks && data.tracks.length > 0;
       
-      // Set waiting flag BEFORE triggering socket events (order matters for race condition)
-      if (hasTracks) {
-        setIsWaitingForSync(true);
-      }
+      // Use flushSync to force React to render loading state BEFORE socket events fire
+      // This prevents React from batching all updates and skipping the loading state
+      flushSync(() => {
+        if (hasTracks) {
+          setIsWaitingForSync(true);
+        }
+        setShowPlaylistPicker(false);
+        setExistingPlaylistId(''); // Clear input
+      });
       
-      // Playlist exists! Link it to the session with its name
+      // Now trigger socket (after loading state is rendered)
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
       setPlaylist(cleanId, listenUrl, playlistName);
-      setShowPlaylistPicker(false);
-      setExistingPlaylistId(''); // Clear input
       
       // Save as last used
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId, name: playlistName }));
