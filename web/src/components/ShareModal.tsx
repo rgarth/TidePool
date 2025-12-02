@@ -14,43 +14,36 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: S
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          className="modal-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 100, padding: 'var(--space-lg)',
-          }}
         >
           <motion.div
+            className="modal text-center"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className="card"
-            style={{ maxWidth: '400px', width: '100%', padding: 'var(--space-xl)' }}
           >
-            <h3 style={{ marginBottom: 'var(--space-lg)', textAlign: 'center' }}>Invite Friends</h3>
+            <h3 className="mb-lg">Invite Friends</h3>
             
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-lg)' }}>
+            <div className="flex justify-center mb-lg">
               <QRCodeSVG
                 value={`${window.location.origin}/join/${sessionId}`}
-                size={180}
+                size={160}
                 bgColor="transparent"
-                fgColor="#22d3ee"
+                fgColor="#3ee0f5"
               />
             </div>
             
-            <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
-              <p className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>Code</p>
-              <code style={{ fontSize: '2rem', letterSpacing: '0.2em', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                {sessionId}
-              </code>
-            </div>
+            <p className="text-secondary text-sm mb-xs">Code</p>
+            <code className="session-code-lg mb-lg" style={{ display: 'inline-block' }}>
+              {sessionId}
+            </code>
             
-            <button onClick={onCopyLink} className="btn btn-primary" style={{ width: '100%' }}>
+            <button className="btn btn-primary btn-block mt-lg" onClick={onCopyLink}>
               {copied ? 'Copied!' : 'Copy Invite Link'}
             </button>
           </motion.div>
@@ -59,4 +52,3 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: S
     </AnimatePresence>
   );
 }
-

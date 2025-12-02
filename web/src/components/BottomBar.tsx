@@ -12,18 +12,13 @@ export function BottomBar({ isHost, hasPlaylist, onOpenInTidal }: BottomBarProps
   }
 
   return (
-    <div style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0,
-      background: 'linear-gradient(transparent, var(--bg-primary) 20%)',
-      padding: 'var(--space-xl) var(--space-lg) var(--space-lg)',
-    }}>
+    <div className="bottom-bar">
       <div className="container">
-        <button onClick={onOpenInTidal} className="btn btn-primary" style={{ width: '100%', padding: 'var(--space-md)' }}>
-          <TidalLogo size={20} style={{ marginRight: '8px' }} />
+        <button className="btn btn-primary btn-block btn-lg" onClick={onOpenInTidal}>
+          <TidalLogo size={20} />
           Open in Tidal
         </button>
       </div>
     </div>
   );
 }
-

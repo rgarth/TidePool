@@ -14,7 +14,6 @@ export function JoinPage() {
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
-  // Auto-uppercase the session code
   const handleCodeChange = (value: string) => {
     setSessionCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
   };
@@ -33,18 +32,14 @@ export function JoinPage() {
     setError('');
 
     try {
-      // Verify the session exists
       const response = await fetch(`${API_URL}/api/sessions/${sessionCode}`);
       
       if (!response.ok) {
         throw new Error('Session not found');
       }
 
-      // Store user info
       sessionStorage.setItem('userName', name.trim());
       sessionStorage.setItem('isHost', 'false');
-      
-      // Navigate to the session
       navigate(`/session/${sessionCode}`);
     } catch (err) {
       setError('Playlist not found. Check the code and try again.');
@@ -52,7 +47,6 @@ export function JoinPage() {
     }
   };
 
-  // If we came from a direct link, pre-fill the code
   useEffect(() => {
     if (urlSessionId) {
       setSessionCode(urlSessionId.toUpperCase());
@@ -61,56 +55,39 @@ export function JoinPage() {
 
   return (
     <div className="page page-centered">
-      <div className="container" style={{ maxWidth: '480px' }}>
+      <div className="container">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           {/* Back button */}
-          <button
-            onClick={() => navigate('/')}
-            className="btn btn-ghost"
-            style={{ marginBottom: 'var(--space-xl)', alignSelf: 'flex-start' }}
-          >
+          <button onClick={() => navigate('/')} className="btn btn-ghost mb-xl">
             <BackArrowIcon size={20} />
             Back
           </button>
 
-          <div className="card">
-            <div style={{ marginBottom: 'var(--space-xl)' }}>
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  margin: '0 auto var(--space-lg)',
-                  borderRadius: '16px',
-                  background: 'var(--gradient-glow)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <MusicIcon size={32} style={{ color: 'var(--bg-primary)' }} />
+          <div className="card text-center">
+            {/* Music icon */}
+            <div className="flex justify-center mb-lg">
+              <div className="flex items-center justify-center" style={{
+                width: 64,
+                height: 64,
+                borderRadius: 'var(--radius-lg)',
+                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-teal))',
+              }}>
+                <MusicIcon size={32} color="var(--bg-primary)" />
               </div>
-              
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Join Playlist</h2>
-              <p className="text-secondary">
-                Enter the 6-letter code to start adding songs
-              </p>
             </div>
+            
+            <h2 className="mb-sm">Join Playlist</h2>
+            <p className="text-secondary mb-xl">
+              Enter the 6-letter code to start adding songs
+            </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+            <div className="flex flex-col gap-md" style={{ textAlign: 'left' }}>
               <div>
-                <label
-                  htmlFor="name"
-                  style={{
-                    display: 'block',
-                    marginBottom: 'var(--space-sm)',
-                    fontSize: '0.875rem',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
+                <label htmlFor="name" className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
                   Your Name
                 </label>
                 <input
@@ -125,31 +102,21 @@ export function JoinPage() {
               </div>
 
               <div>
-                <label
-                  htmlFor="code"
-                  style={{
-                    display: 'block',
-                    marginBottom: 'var(--space-sm)',
-                    fontSize: '0.875rem',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
+                <label htmlFor="code" className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
                   Playlist Code
                 </label>
                 <input
                   id="code"
                   type="text"
-                  className="input"
+                  className="input text-center text-mono"
                   placeholder="ABC123"
                   value={sessionCode}
                   onChange={(e) => handleCodeChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
                   autoFocus={!!urlSessionId}
                   style={{
-                    fontFamily: 'var(--font-mono)',
                     fontSize: '1.5rem',
                     letterSpacing: '0.2em',
-                    textAlign: 'center',
                     textTransform: 'uppercase',
                   }}
                 />
@@ -157,27 +124,18 @@ export function JoinPage() {
 
               {error && (
                 <motion.p
+                  className="text-error text-sm text-center"
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    color: 'var(--accent-magenta)',
-                    fontSize: '0.875rem',
-                    textAlign: 'center',
-                  }}
                 >
                   {error}
                 </motion.p>
               )}
 
               <button
-                className="btn btn-primary"
+                className="btn btn-primary btn-lg btn-block mt-sm"
                 onClick={handleJoinSession}
                 disabled={isJoining}
-                style={{
-                  padding: 'var(--space-lg)',
-                  marginTop: 'var(--space-sm)',
-                  opacity: isJoining ? 0.7 : 1,
-                }}
               >
                 {isJoining ? (
                   <>

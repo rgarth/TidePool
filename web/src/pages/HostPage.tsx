@@ -10,36 +10,28 @@ export function HostPage() {
   const { isAuthenticated, isChecking } = useAuth();
 
   const handleLoginAndCreate = async (forceReauth = false) => {
-    // Create session first, then redirect to Tidal login
     try {
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostName: '' }), // Will get random name
+        body: JSON.stringify({ hostName: '' }),
       });
 
       if (!response.ok) throw new Error('Failed to create session');
 
       const data = await response.json();
       
-      // Store host info
       sessionStorage.setItem('userName', 'Host');
       sessionStorage.setItem('isHost', 'true');
       
       if (isAuthenticated && !forceReauth) {
-        // Already logged in, go straight to session
         navigate(`/session/${data.sessionId}`);
       } else {
-        // Need to login - redirect to Tidal auth
         window.location.href = `${API_URL}/api/auth/login?sessionId=${data.sessionId}`;
       }
     } catch (err) {
       console.error('Failed to create session:', err);
     }
-  };
-
-  const handleReauth = () => {
-    handleLoginAndCreate(true);
   };
 
   if (isChecking) {
@@ -48,70 +40,51 @@ export function HostPage() {
 
   return (
     <div className="page page-centered">
-      <div className="container" style={{ maxWidth: '480px' }}>
+      <div className="container">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           {/* Back button */}
-          <button
-            onClick={() => navigate('/')}
-            className="btn btn-ghost"
-            style={{ marginBottom: 'var(--space-xl)', alignSelf: 'flex-start' }}
-          >
+          <button onClick={() => navigate('/')} className="btn btn-ghost mb-xl">
             <BackArrowIcon size={20} />
             Back
           </button>
 
-          <div className="card">
-            <div style={{ marginBottom: 'var(--space-xl)' }}>
-              {/* Tidal-style icon */}
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  margin: '0 auto var(--space-lg)',
-                  borderRadius: '16px',
-                  background: 'var(--gradient-glow)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <TidalLogo size={32} style={{ color: 'var(--bg-primary)' }} />
+          <div className="card text-center">
+            {/* Tidal icon */}
+            <div className="flex justify-center mb-lg">
+              <div className="flex items-center justify-center" style={{
+                width: 64,
+                height: 64,
+                borderRadius: 'var(--radius-lg)',
+                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-teal))',
+              }}>
+                <TidalLogo size={32} color="var(--bg-primary)" />
               </div>
-              
-              <h2 style={{ marginBottom: 'var(--space-sm)' }}>Host a Playlist</h2>
-              <p className="text-secondary">
-                Connect your Tidal account to host a collaborative playlist session.
-              </p>
             </div>
+            
+            <h2 className="mb-sm">Host a Playlist</h2>
+            <p className="text-secondary mb-xl">
+              Connect your Tidal account to host a collaborative playlist session.
+            </p>
 
-            {/* Tidal Connection Status */}
-            <div
-              style={{
-                padding: 'var(--space-md)',
-                marginBottom: 'var(--space-lg)',
-                borderRadius: 'var(--radius-md)',
-                background: isAuthenticated ? 'rgba(0, 180, 160, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                border: `1px solid ${isAuthenticated ? 'rgba(0, 180, 160, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                  {/* Status indicator */}
-                  <div
-                    style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      background: isAuthenticated ? '#00b4a0' : 'var(--text-muted)',
-                      boxShadow: isAuthenticated ? '0 0 8px rgba(0, 180, 160, 0.5)' : 'none',
-                    }}
-                  />
-                  <span style={{ 
-                    fontWeight: 500,
+            {/* Connection Status */}
+            <div className={`card card-compact mb-lg ${isAuthenticated ? '' : ''}`} style={{
+              background: isAuthenticated ? 'rgba(0, 180, 160, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+              borderColor: isAuthenticated ? 'rgba(0, 180, 160, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+            }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-sm">
+                  <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: isAuthenticated ? '#00b4a0' : 'var(--text-muted)',
+                    boxShadow: isAuthenticated ? '0 0 8px rgba(0, 180, 160, 0.5)' : 'none',
+                  }} />
+                  <span className="text-medium" style={{ 
                     color: isAuthenticated ? '#00b4a0' : 'var(--text-secondary)',
                   }}>
                     {isAuthenticated ? 'Connected to Tidal' : 'Not connected'}
@@ -119,32 +92,23 @@ export function HostPage() {
                 </div>
                 {isAuthenticated && (
                   <button
-                    onClick={handleReauth}
-                    className="btn btn-ghost"
-                    style={{ 
-                      padding: '4px 8px', 
-                      fontSize: '0.75rem',
-                      color: 'var(--text-muted)',
-                    }}
+                    onClick={() => handleLoginAndCreate(true)}
+                    className="btn btn-ghost btn-sm text-muted"
                   >
-                    Re-authenticate
+                    Re-auth
                   </button>
                 )}
               </div>
               {!isAuthenticated && (
-                <p className="text-muted" style={{ marginTop: 'var(--space-sm)', fontSize: '0.8rem' }}>
+                <p className="text-muted text-sm mt-sm" style={{ textAlign: 'left' }}>
                   You'll need to login to your Tidal account to host a playlist.
                 </p>
               )}
             </div>
 
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-lg btn-block"
               onClick={() => handleLoginAndCreate()}
-              style={{
-                width: '100%',
-                padding: 'var(--space-lg)',
-              }}
             >
               {isAuthenticated ? (
                 <>
@@ -153,14 +117,14 @@ export function HostPage() {
                 </>
               ) : (
                 <>
-                  <TidalLogo size={20} style={{ marginRight: '8px' }} />
+                  <TidalLogo size={20} />
                   Connect Tidal Account
                 </>
               )}
             </button>
           </div>
 
-          <p className="text-muted" style={{ marginTop: 'var(--space-xl)', fontSize: '0.875rem' }}>
+          <p className="text-muted text-sm text-center mt-xl">
             {isAuthenticated 
               ? "You'll get a code to share with your friends"
               : "You'll be redirected to Tidal to authorize TidePool"

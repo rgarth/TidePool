@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { RefreshIcon, MenuIcon, ExitIcon, SearchIcon, CloseIcon } from './Icons';
+import { DropdownMenu } from './DropdownMenu';
+import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon } from './Icons';
 
 interface SessionHeaderProps {
   sessionName: string;
@@ -12,7 +13,6 @@ interface SessionHeaderProps {
   participantCount: number;
   activeTab: 'playlist' | 'participants';
   searchQuery: string;
-  /** Disable search when playlist is unavailable */
   searchDisabled?: boolean;
   onCopyCode: () => void;
   onRefresh: () => void;
@@ -45,143 +45,97 @@ export function SessionHeader({
   onClearSearch,
   onTabChange,
 }: SessionHeaderProps) {
+  // Build menu items based on host status
+  const menuItems = [];
+  
+  if (isHost && hasPlaylist) {
+    menuItems.push({
+      label: 'Refresh from Tidal',
+      icon: (
+        <motion.div
+          animate={isRefreshing ? { rotate: 360 } : {}}
+          transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
+          style={{ display: 'flex' }}
+        >
+          <RefreshIcon size={18} />
+        </motion.div>
+      ),
+      onClick: onRefresh,
+      disabled: isRefreshing,
+    });
+  }
+  
+  if (isHost) {
+    menuItems.push({
+      label: 'Switch playlist',
+      icon: <SwitchIcon size={18} />,
+      onClick: onOpenPlaylistPicker,
+    });
+  }
+  
+  menuItems.push({
+    label: 'Exit session',
+    icon: <ExitIcon size={18} />,
+    onClick: onExit,
+    danger: true,
+  });
+
   return (
-    <header className="container" style={{ paddingTop: 'var(--space-lg)', paddingBottom: 'var(--space-md)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{sessionName}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <button
+    <header className="header container">
+      {/* Top row: Name, code, actions */}
+      <div className="header-row">
+        <div className="header-info">
+          <h1 className="header-title truncate">{sessionName}</h1>
+          <div className="header-meta">
+            <code 
+              className="session-code" 
               onClick={onCopyCode}
-              className="text-muted"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
+              title={copied ? 'Copied!' : 'Tap to copy'}
             >
-              <code style={{ 
-                background: 'var(--bg-elevated)', 
-                padding: '2px 8px', 
-                borderRadius: 'var(--radius-sm)',
-                letterSpacing: '0.1em',
-              }}>
-                {sessionId}
-              </code>
-              {copied ? '✓' : '📋'}
-            </button>
-            {isHost && (
-              <span style={{
-                padding: '4px 8px',
-                background: 'var(--accent-cyan)',
-                color: 'var(--bg-primary)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-              }}>
-                HOST
-              </span>
-            )}
+              {sessionId}
+              {copied && <span className="text-accent"> ✓</span>}
+            </code>
+            {isHost && <span className="badge badge-accent">HOST</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-          {isHost && hasPlaylist && (
-            <button 
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="btn btn-ghost btn-sm"
-              title="Refresh from Tidal"
-            >
-              <motion.div
-                animate={isRefreshing ? { rotate: 360 } : {}}
-                transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
-                style={{ display: 'flex' }}
-              >
-                <RefreshIcon size={18} />
-              </motion.div>
-            </button>
-          )}
-          {isHost && (
-            <button 
-              onClick={onOpenPlaylistPicker}
-              className="btn btn-ghost btn-sm"
-              title="Switch playlist"
-            >
-              <MenuIcon size={18} />
-            </button>
-          )}
+        
+        <div className="header-actions">
           <button onClick={onShare} className="btn btn-secondary btn-sm">
             Invite
           </button>
-          <button 
-            onClick={onExit}
-            className="btn btn-ghost btn-sm"
-            title="Exit session"
-          >
-            <ExitIcon size={18} />
-          </button>
+          <DropdownMenu items={menuItems} />
         </div>
       </div>
 
       {/* Search input */}
-      <div style={{ position: 'relative', zIndex: 15, opacity: searchDisabled ? 0.5 : 1 }}>
+      <div className={`input-group ${searchDisabled ? 'opacity-50' : ''}`}>
         <input
           type="text"
-          className="input"
-          placeholder={searchDisabled ? "Playlist unavailable" : "Search for songs to add..."}
+          className="input input-with-icon"
+          placeholder={searchDisabled ? 'Playlist unavailable' : 'Search for songs to add...'}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           disabled={searchDisabled}
-          style={{
-            width: '100%',
-            paddingLeft: '44px',
-            paddingRight: searchQuery ? '44px' : undefined,
-            cursor: searchDisabled ? 'not-allowed' : undefined,
-          }}
         />
-        <SearchIcon 
-          size={20} 
-          style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} 
-        />
+        <SearchIcon size={20} className="input-icon" />
         {searchQuery && (
-          <button
-            onClick={onClearSearch}
-            style={{
-              position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)',
-            }}
-          >
+          <button className="input-clear" onClick={onClearSearch}>
             <CloseIcon size={16} />
           </button>
         )}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)', borderBottom: '1px solid rgba(255,255,255,0.1)', alignItems: 'center' }}>
+      <div className="tabs mt-md">
         <button
+          className={`tab ${activeTab === 'playlist' ? 'tab-active' : ''}`}
           onClick={() => onTabChange('playlist')}
-          style={{
-            background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
-            color: activeTab === 'playlist' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-            borderBottom: activeTab === 'playlist' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-            cursor: 'pointer', fontWeight: '500',
-          }}
         >
           Playlist ({trackCount})
         </button>
         <button
+          className={`tab ${activeTab === 'participants' ? 'tab-active' : ''}`}
           onClick={() => onTabChange('participants')}
-          style={{
-            background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
-            color: activeTab === 'participants' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-            borderBottom: activeTab === 'participants' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-            cursor: 'pointer', fontWeight: '500',
-          }}
         >
           People ({participantCount})
         </button>
@@ -189,4 +143,3 @@ export function SessionHeader({
     </header>
   );
 }
-

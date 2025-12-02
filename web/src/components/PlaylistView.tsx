@@ -9,9 +9,7 @@ interface PlaylistViewProps {
   isHost: boolean;
   deletingTrackId: string | null;
   onDeleteTrack: (trackId: string) => void;
-  /** Playlist is no longer accessible on Tidal */
   isUnavailable?: boolean;
-  /** Callback when host wants to choose a new playlist */
   onSelectNewPlaylist?: () => void;
 }
 
@@ -27,33 +25,17 @@ export function PlaylistView({
   // Priority: Unavailable > Loading > Empty > Tracks
   if (isUnavailable) {
     return (
-      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-        <div style={{
-          width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-          borderRadius: '50%', background: 'rgba(255, 180, 100, 0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '2px solid rgba(255, 180, 100, 0.3)',
-        }}>
-          <span style={{ fontSize: '2rem' }}>⚠️</span>
-        </div>
-        <h3 style={{ color: '#ffb464', marginBottom: 'var(--space-sm)' }}>
-          Playlist Unavailable
-        </h3>
-        <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
-          This playlist is no longer accessible on Tidal
-        </p>
+      <div className="empty-state">
+        <div className="empty-state-icon" style={{ color: '#ffb464' }}>⚠️</div>
+        <h3 style={{ color: '#ffb464' }} className="mb-sm">Playlist Unavailable</h3>
+        <p className="text-muted mb-lg">This playlist is no longer accessible on Tidal</p>
         {isHost && onSelectNewPlaylist && (
-          <button 
-            onClick={onSelectNewPlaylist}
-            className="btn btn-primary"
-          >
+          <button className="btn btn-primary" onClick={onSelectNewPlaylist}>
             Select Different Playlist
           </button>
         )}
         {!isHost && (
-          <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-            Ask the host to select a different playlist
-          </p>
+          <p className="text-secondary text-sm">Ask the host to select a different playlist</p>
         )}
       </div>
     );
@@ -61,21 +43,15 @@ export function PlaylistView({
 
   if (isLoading) {
     return (
-      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
+      <div className="empty-state">
         <motion.div
+          className="empty-state-icon"
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-          style={{
-            width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-            borderRadius: '50%', background: 'var(--bg-elevated)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
         >
-          <MusicIcon size={40} style={{ color: 'var(--accent-cyan)' }} />
+          <MusicIcon size={48} color="var(--accent-cyan)" />
         </motion.div>
-        <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-          Loading playlist...
-        </h3>
+        <h3 className="text-secondary mb-xs">Loading playlist...</h3>
         <p className="text-muted">Fetching tracks from Tidal</p>
       </div>
     );
@@ -83,24 +59,18 @@ export function PlaylistView({
 
   if (tracks.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-        <div style={{
-          width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-          borderRadius: '50%', background: 'var(--bg-elevated)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <MusicIcon size={40} style={{ color: 'var(--text-muted)' }} />
+      <div className="empty-state">
+        <div className="empty-state-icon">
+          <MusicIcon size={48} color="var(--text-muted)" />
         </div>
-        <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-          Playlist is empty
-        </h3>
+        <h3 className="text-secondary mb-xs">Playlist is empty</h3>
         <p className="text-muted">Search for songs above to add them</p>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+    <div className="flex flex-col gap-sm">
       {tracks.map((track, index) => (
         <TrackItem
           key={track.id}
@@ -114,4 +84,3 @@ export function PlaylistView({
     </div>
   );
 }
-

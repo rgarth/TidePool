@@ -4,30 +4,18 @@ interface ParticipantsListProps {
 
 export function ParticipantsList({ participants }: ParticipantsListProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+    <div className="flex flex-col gap-sm">
       {participants.map((name, index) => (
-        <div 
-          key={index} 
-          className="card" 
-          style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}
-        >
-          <div style={{
-            width: '40px', 
-            height: '40px', 
-            borderRadius: '50%',
-            background: `hsl(${(name.charCodeAt(0) * 137) % 360}, 60%, 50%)`,
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            color: 'white', 
-            fontWeight: '600',
-          }}>
+        <div key={index} className="participant-item card card-compact">
+          <div 
+            className="participant-avatar"
+            style={{ background: `hsl(${(name.charCodeAt(0) * 137) % 360}, 55%, 45%)` }}
+          >
             {name.charAt(0).toUpperCase()}
           </div>
-          <span>{name}</span>
+          <span className="participant-name">{name}</span>
         </div>
       ))}
     </div>
   );
 }
-

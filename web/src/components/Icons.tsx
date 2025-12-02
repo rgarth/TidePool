@@ -79,6 +79,18 @@ export function MenuIcon({ size = 18, color = 'currentColor', strokeWidth = 2, s
   );
 }
 
+// Switch/swap icon (for switching playlists)
+export function SwitchIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M16 3l4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="M8 21l-4-4 4-4" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
 // Exit/logout icon
 export function ExitIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
   return (
@@ -91,9 +103,9 @@ export function ExitIcon({ size = 18, color = 'currentColor', strokeWidth = 2, s
 }
 
 // Search icon
-export function SearchIcon({ size = 20, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+export function SearchIcon({ size = 20, color = 'currentColor', strokeWidth = 2, style, className }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} style={style}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} style={style} className={className}>
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.35-4.35" />
     </svg>

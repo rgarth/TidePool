@@ -385,7 +385,7 @@ export function SessionPage() {
   }
 
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="page" style={{ height: '100vh' }}>
       <SessionHeader
         sessionName={sessionState.name}
         sessionId={sessionId}
@@ -409,7 +409,7 @@ export function SessionPage() {
       />
 
       {/* Main content */}
-      <main className="container" style={{ flex: 1, overflow: 'auto', paddingBottom: '120px' }}>
+      <main className="container page-content" style={{ overflow: 'auto' }}>
         <SearchResults
           searchQuery={searchQuery}
           searchResults={searchResults}
