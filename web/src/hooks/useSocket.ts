@@ -9,11 +9,15 @@ interface UseSocketReturn {
   error: string | null;
   /** True when we're waiting for playlist_synced after a playlist change */
   isAwaitingSync: boolean;
+  /** True when the current playlist was deleted from Tidal */
+  playlistDeleted: boolean;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
   addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
   /** Call before loading a playlist to clear tracks and show loading state */
   startLoading: () => void;
+  /** Clear the deleted flag (when switching to a new playlist) */
+  clearDeletedFlag: () => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -22,6 +26,7 @@ export function useSocket(): UseSocketReturn {
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAwaitingSync, setIsAwaitingSync] = useState(false);
+  const [playlistDeleted, setPlaylistDeleted] = useState(false);
 
   useEffect(() => {
     // Connect to WebSocket server
@@ -70,6 +75,7 @@ export function useSocket(): UseSocketReturn {
 
     socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string; sessionName?: string }) => {
       console.log('Playlist linked:', data.tidalPlaylistId, data.sessionName);
+      setPlaylistDeleted(false); // Clear deleted flag when linking new playlist
       setSessionState((prev) => prev ? { 
         ...prev, 
         tidalPlaylistId: data.tidalPlaylistId,
@@ -77,6 +83,12 @@ export function useSocket(): UseSocketReturn {
         name: data.sessionName || prev.name,
         tracks: [], // Clear old tracks when switching playlists
       } : null);
+    });
+
+    socket.on('playlist_deleted', (data: { playlistId: string; message: string }) => {
+      console.log('Playlist deleted:', data.playlistId, data.message);
+      setPlaylistDeleted(true);
+      setIsAwaitingSync(false); // Stop any loading state
     });
 
     socket.on('participant_joined', (data: { name: string; participants: string[] }) => {
@@ -120,7 +132,13 @@ export function useSocket(): UseSocketReturn {
   // Call before loading a new playlist - clears tracks and sets loading state
   const startLoading = useCallback(() => {
     setIsAwaitingSync(true);
+    setPlaylistDeleted(false); // Clear deleted flag
     setSessionState((prev) => prev ? { ...prev, tracks: [] } : null);
+  }, []);
+
+  // Clear the deleted flag (when user acknowledges or switches playlist)
+  const clearDeletedFlag = useCallback(() => {
+    setPlaylistDeleted(false);
   }, []);
 
   return {
@@ -128,9 +146,11 @@ export function useSocket(): UseSocketReturn {
     sessionState,
     error,
     isAwaitingSync,
+    playlistDeleted,
     joinSession,
     addToPlaylist,
     setPlaylist,
     startLoading,
+    clearDeletedFlag,
   };
 }

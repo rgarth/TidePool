@@ -9,6 +9,10 @@ interface PlaylistViewProps {
   isHost: boolean;
   deletingTrackId: string | null;
   onDeleteTrack: (trackId: string) => void;
+  /** Playlist was deleted from Tidal */
+  isDeleted?: boolean;
+  /** Callback when host wants to choose a new playlist */
+  onSelectNewPlaylist?: () => void;
 }
 
 export function PlaylistView({
@@ -17,8 +21,44 @@ export function PlaylistView({
   isHost,
   deletingTrackId,
   onDeleteTrack,
+  isDeleted,
+  onSelectNewPlaylist,
 }: PlaylistViewProps) {
-  // Priority: Loading > Empty > Tracks
+  // Priority: Deleted > Loading > Empty > Tracks
+  if (isDeleted) {
+    return (
+      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
+        <div style={{
+          width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+          borderRadius: '50%', background: 'rgba(255, 100, 100, 0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '2px solid rgba(255, 100, 100, 0.3)',
+        }}>
+          <span style={{ fontSize: '2rem' }}>🗑️</span>
+        </div>
+        <h3 style={{ color: '#ff6b6b', marginBottom: 'var(--space-sm)' }}>
+          Playlist Deleted
+        </h3>
+        <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
+          This playlist has been deleted from Tidal
+        </p>
+        {isHost && onSelectNewPlaylist && (
+          <button 
+            onClick={onSelectNewPlaylist}
+            className="btn btn-primary"
+          >
+            Select New Playlist
+          </button>
+        )}
+        {!isHost && (
+          <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
+            Ask the host to select a new playlist
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>

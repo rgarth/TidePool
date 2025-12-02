@@ -24,9 +24,11 @@ export function SessionPage() {
     sessionState,
     error,
     isAwaitingSync,
+    playlistDeleted,
     joinSession,
     setPlaylist,
     startLoading,
+    clearDeletedFlag,
   } = useSocket();
 
   const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
@@ -424,6 +426,11 @@ export function SessionPage() {
                 isHost={sessionState.isHost}
                 deletingTrackId={deletingTrackId}
                 onDeleteTrack={handleDeleteTrack}
+                isDeleted={playlistDeleted}
+                onSelectNewPlaylist={() => {
+                  clearDeletedFlag();
+                  setShowPlaylistPicker(true);
+                }}
               />
             </motion.div>
           ) : (

@@ -211,6 +211,9 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
     res.json({ success: true, added: trackIds.length, tracks });
   } catch (error: any) {
     console.error('>>> Add tracks error:', error.message);
+    if (error.message === 'PLAYLIST_NOT_FOUND') {
+      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.', deleted: true });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -248,6 +251,9 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
     res.json({ success: true, removed: trackIds.length, tracks });
   } catch (error: any) {
     console.error('>>> Remove tracks error:', error.message);
+    if (error.message === 'PLAYLIST_NOT_FOUND') {
+      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.', deleted: true });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -325,6 +331,23 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
     return res.json({ success: true, tracks, playlistName: playlistInfo?.name });
   } catch (error: any) {
     console.error('>>> Refresh playlist FAILED:', error);
+    // Handle deleted playlist
+    if (error.message === 'PLAYLIST_NOT_FOUND') {
+      // Notify session that playlist was deleted
+      if (sessionId && typeof sessionId === 'string' && io) {
+        const session = sessions.get(sessionId.toUpperCase());
+        if (session) {
+          io.to(session.id).emit('playlist_deleted', { 
+            playlistId,
+            message: 'This playlist has been deleted from Tidal',
+          });
+        }
+      }
+      return res.status(404).json({ 
+        error: 'Playlist not found. It may have been deleted from Tidal.',
+        deleted: true,
+      });
+    }
     return res.status(500).json({ error: error.message });
   }
 });
