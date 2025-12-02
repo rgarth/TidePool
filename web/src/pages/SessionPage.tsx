@@ -101,6 +101,21 @@ export function SessionPage() {
 
   // Refresh playlist from Tidal (source of truth)
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedPlaylist, setHasLoadedPlaylist] = useState(false);
+  
+  // Track when playlist has been loaded (to distinguish loading from empty)
+  // Reset when playlist changes, mark loaded when we get tracks or confirm empty
+  useEffect(() => {
+    // If no playlist linked yet, nothing to load
+    if (!sessionState?.tidalPlaylistId) {
+      setHasLoadedPlaylist(false);
+      return;
+    }
+    // If we have tracks, we've definitely loaded
+    if (sessionState.tracks.length > 0) {
+      setHasLoadedPlaylist(true);
+    }
+  }, [sessionState?.tidalPlaylistId, sessionState?.tracks.length]);
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -116,8 +131,12 @@ export function SessionPage() {
       
       // Server will broadcast 'playlist_synced' to all clients
       console.log('Refresh requested');
+      // Mark as loaded (even if empty) after successful refresh
+      setHasLoadedPlaylist(true);
     } catch (err) {
       console.error('Failed to refresh playlist:', err);
+      // Still mark as loaded so we don't show spinner forever
+      setHasLoadedPlaylist(true);
     } finally {
       setIsRefreshing(false);
     }
@@ -817,21 +836,48 @@ export function SessionPage() {
             <motion.div key="playlist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {sessionState.tracks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  <div style={{
-                    width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-                    borderRadius: '50%', background: 'var(--bg-elevated)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
-                      <path d="M9 18V5l12-2v13" />
-                      <circle cx="6" cy="18" r="3" />
-                      <circle cx="18" cy="16" r="3" />
-                    </svg>
-                  </div>
-                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                    Playlist is empty
-                  </h3>
-                  <p className="text-muted">Search for songs above to add them</p>
+                  {/* Show loading spinner if playlist exists but hasn't loaded yet */}
+                  {sessionState.tidalPlaylistId && !hasLoadedPlaylist ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                        style={{
+                          width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+                          borderRadius: '50%', background: 'var(--bg-elevated)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-cyan)' }}>
+                          <path d="M9 18V5l12-2v13" />
+                          <circle cx="6" cy="18" r="3" />
+                          <circle cx="18" cy="16" r="3" />
+                        </svg>
+                      </motion.div>
+                      <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                        Loading playlist...
+                      </h3>
+                      <p className="text-muted">Fetching tracks from Tidal</p>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{
+                        width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+                        borderRadius: '50%', background: 'var(--bg-elevated)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
+                          <path d="M9 18V5l12-2v13" />
+                          <circle cx="6" cy="18" r="3" />
+                          <circle cx="18" cy="16" r="3" />
+                        </svg>
+                      </div>
+                      <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                        Playlist is empty
+                      </h3>
+                      <p className="text-muted">Search for songs above to add them</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>

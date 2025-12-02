@@ -24,35 +24,35 @@ export function HomePage() {
                 justifyContent: 'center',
               }}
             >
-              {/* Pixel art wave icon */}
+              {/* Pixel art wave icon - centered: y spans 3-25 in 28-unit viewBox */}
               <svg width="56" height="56" viewBox="0 0 28 28" fill="white">
                 {/* Top wave - pixel art squares */}
-                <rect x="2" y="5" width="3" height="3" />
-                <rect x="5" y="8" width="3" height="3" />
-                <rect x="8" y="5" width="3" height="3" />
-                <rect x="11" y="8" width="3" height="3" />
-                <rect x="14" y="5" width="3" height="3" />
-                <rect x="17" y="8" width="3" height="3" />
-                <rect x="20" y="5" width="3" height="3" />
-                <rect x="23" y="8" width="3" height="3" />
+                <rect x="2" y="3" width="3" height="3" />
+                <rect x="5" y="6" width="3" height="3" />
+                <rect x="8" y="3" width="3" height="3" />
+                <rect x="11" y="6" width="3" height="3" />
+                <rect x="14" y="3" width="3" height="3" />
+                <rect x="17" y="6" width="3" height="3" />
+                <rect x="20" y="3" width="3" height="3" />
+                <rect x="23" y="6" width="3" height="3" />
                 {/* Middle wave */}
-                <rect x="2" y="13" width="3" height="3" />
-                <rect x="5" y="16" width="3" height="3" />
-                <rect x="8" y="13" width="3" height="3" />
-                <rect x="11" y="16" width="3" height="3" />
-                <rect x="14" y="13" width="3" height="3" />
-                <rect x="17" y="16" width="3" height="3" />
-                <rect x="20" y="13" width="3" height="3" />
-                <rect x="23" y="16" width="3" height="3" />
+                <rect x="2" y="11" width="3" height="3" />
+                <rect x="5" y="14" width="3" height="3" />
+                <rect x="8" y="11" width="3" height="3" />
+                <rect x="11" y="14" width="3" height="3" />
+                <rect x="14" y="11" width="3" height="3" />
+                <rect x="17" y="14" width="3" height="3" />
+                <rect x="20" y="11" width="3" height="3" />
+                <rect x="23" y="14" width="3" height="3" />
                 {/* Bottom wave */}
-                <rect x="2" y="21" width="3" height="3" />
-                <rect x="5" y="24" width="3" height="3" />
-                <rect x="8" y="21" width="3" height="3" />
-                <rect x="11" y="24" width="3" height="3" />
-                <rect x="14" y="21" width="3" height="3" />
-                <rect x="17" y="24" width="3" height="3" />
-                <rect x="20" y="21" width="3" height="3" />
-                <rect x="23" y="24" width="3" height="3" />
+                <rect x="2" y="19" width="3" height="3" />
+                <rect x="5" y="22" width="3" height="3" />
+                <rect x="8" y="19" width="3" height="3" />
+                <rect x="11" y="22" width="3" height="3" />
+                <rect x="14" y="19" width="3" height="3" />
+                <rect x="17" y="22" width="3" height="3" />
+                <rect x="20" y="19" width="3" height="3" />
+                <rect x="23" y="22" width="3" height="3" />
               </svg>
             </div>
             
