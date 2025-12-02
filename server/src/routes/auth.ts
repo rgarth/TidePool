@@ -170,9 +170,12 @@ router.get('/callback', async (req: Request, res: Response) => {
     
     // Store hostToken in session so guests can use it
     const session = sessions.get(pending.sessionId.toUpperCase());
+    console.log(`>>> Looking for session ${pending.sessionId.toUpperCase()}, found: ${!!session}`);
     if (session) {
+      console.log(`>>> Session ${session.id} BEFORE: hostToken=${session.hostToken?.substring(0, 8) || 'undefined'}...`);
       session.hostToken = pending.hostToken;
       session.hostName = username || 'Host'; // Store username for display
+      console.log(`>>> Session ${session.id} AFTER: hostToken=${session.hostToken?.substring(0, 8)}...`);
       console.log(`Stored hostToken in session ${pending.sessionId}`);
     }
     
