@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { SpinnerIcon } from './Icons';
+import { Spinner } from './Spinner';
 import type { SearchResult } from '../types';
 
 interface SearchResultsProps {
@@ -33,13 +33,7 @@ export function SearchResults({
       <div style={{ position: 'relative', zIndex: 10, marginBottom: 'var(--space-lg)' }}>
         {isSearching ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              style={{ display: 'inline-block' }}
-            >
-              <SpinnerIcon size={24} />
-            </motion.div>
+            <Spinner size={24} />
           </div>
         ) : searchResults.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
@@ -92,15 +86,7 @@ export function SearchResults({
                   disabled={addingTrackId === track.id}
                   style={{ minWidth: '60px' }}
                 >
-                  {addingTrackId === track.id ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      style={{ width: '16px', height: '16px' }}
-                    >
-                      <SpinnerIcon size={16} />
-                    </motion.div>
-                  ) : 'Add'}
+                  {addingTrackId === track.id ? <Spinner size={16} /> : 'Add'}
                 </button>
               </motion.div>
             ))}

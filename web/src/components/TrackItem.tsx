@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { SpinnerIcon, TrashIcon } from './Icons';
+import { TrashIcon } from './Icons';
+import { Spinner } from './Spinner';
 import type { Track } from '../types';
 
 interface TrackItemProps {
@@ -56,16 +57,7 @@ export function TrackItem({ track, index, isHost, isDeleting, onDelete, formatDu
           onMouseEnter={(e) => e.currentTarget.style.color = '#ff6b6b'}
           onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
         >
-          {isDeleting ? (
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-            >
-              <SpinnerIcon size={18} />
-            </motion.div>
-          ) : (
-            <TrashIcon size={18} />
-          )}
+          {isDeleting ? <Spinner size={18} /> : <TrashIcon size={18} />}
         </button>
       )}
     </motion.div>

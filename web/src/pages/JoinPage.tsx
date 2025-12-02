@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BackArrowIcon, MusicIcon, JoinIcon } from '../components/Icons';
+import { Spinner } from '../components/Spinner';
 import { API_URL } from '../config';
 
 export function JoinPage() {
@@ -180,17 +181,7 @@ export function JoinPage() {
               >
                 {isJoining ? (
                   <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        border: '2px solid transparent',
-                        borderTopColor: 'currentColor',
-                        borderRadius: '50%',
-                      }}
-                    />
+                    <Spinner size={20} />
                     Joining...
                   </>
                 ) : (

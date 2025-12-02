@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '../hooks/useSocket';
 import { useSearch } from '../hooks/useSearch';
+import { useAuth } from '../hooks/useAuth';
 import { PlaylistPicker } from '../components/PlaylistPicker';
 import { SessionHeader } from '../components/SessionHeader';
 import { SearchResults } from '../components/SearchResults';
@@ -10,6 +11,7 @@ import { PlaylistView } from '../components/PlaylistView';
 import { ParticipantsList } from '../components/ParticipantsList';
 import { ShareModal } from '../components/ShareModal';
 import { BottomBar } from '../components/BottomBar';
+import { PageSpinner } from '../components/Spinner';
 import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
@@ -29,8 +31,12 @@ export function SessionPage() {
   const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
   
-  // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Check if just returned from auth (need to calculate before useAuth)
+  const authSuccess = searchParams.get('auth') === 'success';
+  const urlToken = searchParams.get('token');
+  
+  // Authentication state - delay check if we just got a token from URL
+  const { isAuthenticated } = useAuth({ delayCheck: authSuccess && urlToken ? 100 : 0 });
   
   // Playlist creation state (for host)
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
@@ -61,10 +67,6 @@ export function SessionPage() {
   const [addingTrackId, setAddingTrackId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   
-  // Check if just returned from auth
-  const authSuccess = searchParams.get('auth') === 'success';
-  const urlToken = searchParams.get('token');
-  
   // Extract and store token from URL (for cross-origin auth when cookies are blocked)
   useEffect(() => {
     if (authSuccess && urlToken) {
@@ -76,26 +78,6 @@ export function SessionPage() {
       navigate(`/session/${sessionId}?${newParams.toString()}`, { replace: true });
     }
   }, [authSuccess, urlToken, navigate, sessionId, searchParams]);
-  
-  // Check authentication status
-  const checkAuthStatus = useCallback(async () => {
-    try {
-      const response = await apiFetch('/api/auth/status');
-      const data = await response.json();
-      setIsAuthenticated(data.authenticated);
-    } catch (err) {
-      console.error('Failed to check auth status:', err);
-    }
-  }, []);
-  
-  // Check auth on mount and after successful auth
-  useEffect(() => {
-    // Small delay after storing token to ensure it's saved
-    const timer = setTimeout(() => {
-      checkAuthStatus();
-    }, authSuccess && urlToken ? 100 : 0);
-    return () => clearTimeout(timer);
-  }, [checkAuthStatus, authSuccess, urlToken]);
 
   // Show playlist picker for host if no playlist linked yet
   useEffect(() => {
@@ -395,21 +377,7 @@ export function SessionPage() {
 
   // Loading state
   if (!sessionState) {
-    return (
-      <div className="page page-centered">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          style={{
-            width: '40px',
-            height: '40px',
-            border: '3px solid var(--bg-elevated)',
-            borderTopColor: 'var(--accent-cyan)',
-            borderRadius: '50%',
-          }}
-        />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   // Playlist picker for host (no playlist selected yet)

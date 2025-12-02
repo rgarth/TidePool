@@ -1,29 +1,13 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
 import { BackArrowIcon, TidalLogo, PlayCircleIcon } from '../components/Icons';
-import { API_URL, apiFetch } from '../config';
+import { PageSpinner } from '../components/Spinner';
+import { API_URL } from '../config';
 
 export function HostPage() {
   const navigate = useNavigate();
-  const [isChecking, setIsChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Check if already logged in to Tidal
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await apiFetch('/api/auth/status');
-        const data = await response.json();
-        setIsAuthenticated(data.authenticated);
-      } catch (err) {
-        console.error('Auth check failed:', err);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-    checkAuth();
-  }, []);
+  const { isAuthenticated, isChecking } = useAuth();
 
   const handleLoginAndCreate = async (forceReauth = false) => {
     // Create session first, then redirect to Tidal login
@@ -59,21 +43,7 @@ export function HostPage() {
   };
 
   if (isChecking) {
-    return (
-      <div className="page page-centered">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          style={{
-            width: '40px',
-            height: '40px',
-            border: '3px solid var(--bg-elevated)',
-            borderTopColor: 'var(--accent-cyan)',
-            borderRadius: '50%',
-          }}
-        />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (
