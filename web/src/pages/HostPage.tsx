@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { BackArrowIcon, TidalLogo, PlayCircleIcon } from '../components/Icons';
 import { API_URL, apiFetch } from '../config';
 
 export function HostPage() {
@@ -89,9 +90,7 @@ export function HostPage() {
             className="btn btn-ghost"
             style={{ marginBottom: 'var(--space-xl)', alignSelf: 'flex-start' }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+            <BackArrowIcon size={20} />
             Back
           </button>
 
@@ -110,9 +109,7 @@ export function HostPage() {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--bg-primary)' }}>
-                  <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
-                </svg>
+                <TidalLogo size={32} style={{ color: 'var(--bg-primary)' }} />
               </div>
               
               <h2 style={{ marginBottom: 'var(--space-sm)' }}>Host a Playlist</h2>
@@ -181,17 +178,12 @@ export function HostPage() {
             >
               {isAuthenticated ? (
                 <>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polygon points="10 8 16 12 10 16 10 8" />
-                  </svg>
+                  <PlayCircleIcon size={20} />
                   Start Hosting
                 </>
               ) : (
                 <>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
-                    <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
-                  </svg>
+                  <TidalLogo size={20} style={{ marginRight: '8px' }} />
                   Connect Tidal Account
                 </>
               )}

@@ -111,3 +111,77 @@ export function TrashIcon({ size = 18, color = 'currentColor', strokeWidth = 2, 
   );
 }
 
+// Back arrow icon
+export function BackArrowIcon({ size = 20, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+// Arrow right icon
+export function ArrowRightIcon({ size = 20, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+// Play circle icon (host playlist)
+export function PlayCircleIcon({ size = 24, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="10 8 16 12 10 16 10 8" />
+    </svg>
+  );
+}
+
+// Join/Enter icon (door with arrow)
+export function JoinIcon({ size = 20, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <polyline points="10 17 15 12 10 7" />
+      <line x1="15" y1="12" x2="3" y2="12" />
+    </svg>
+  );
+}
+
+// Pixel art wave logo (TidePool brand)
+export function WaveLogoIcon({ size = 56, color = 'white', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 28 28" fill={color} style={style}>
+      {/* Top wave - pixel art squares */}
+      <rect x="2" y="3" width="3" height="3" />
+      <rect x="5" y="6" width="3" height="3" />
+      <rect x="8" y="3" width="3" height="3" />
+      <rect x="11" y="6" width="3" height="3" />
+      <rect x="14" y="3" width="3" height="3" />
+      <rect x="17" y="6" width="3" height="3" />
+      <rect x="20" y="3" width="3" height="3" />
+      <rect x="23" y="6" width="3" height="3" />
+      {/* Middle wave */}
+      <rect x="2" y="11" width="3" height="3" />
+      <rect x="5" y="14" width="3" height="3" />
+      <rect x="8" y="11" width="3" height="3" />
+      <rect x="11" y="14" width="3" height="3" />
+      <rect x="14" y="11" width="3" height="3" />
+      <rect x="17" y="14" width="3" height="3" />
+      <rect x="20" y="11" width="3" height="3" />
+      <rect x="23" y="14" width="3" height="3" />
+      {/* Bottom wave */}
+      <rect x="2" y="19" width="3" height="3" />
+      <rect x="5" y="22" width="3" height="3" />
+      <rect x="8" y="19" width="3" height="3" />
+      <rect x="11" y="22" width="3" height="3" />
+      <rect x="14" y="19" width="3" height="3" />
+      <rect x="17" y="22" width="3" height="3" />
+      <rect x="20" y="19" width="3" height="3" />
+      <rect x="23" y="22" width="3" height="3" />
+    </svg>
+  );
+}
+

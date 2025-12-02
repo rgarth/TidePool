@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { WaveLogoIcon, PlayCircleIcon, JoinIcon } from '../components/Icons';
 
 export function HomePage() {
   return (
@@ -24,36 +25,7 @@ export function HomePage() {
                 justifyContent: 'center',
               }}
             >
-              {/* Pixel art wave icon - centered: y spans 3-25 in 28-unit viewBox */}
-              <svg width="56" height="56" viewBox="0 0 28 28" fill="white">
-                {/* Top wave - pixel art squares */}
-                <rect x="2" y="3" width="3" height="3" />
-                <rect x="5" y="6" width="3" height="3" />
-                <rect x="8" y="3" width="3" height="3" />
-                <rect x="11" y="6" width="3" height="3" />
-                <rect x="14" y="3" width="3" height="3" />
-                <rect x="17" y="6" width="3" height="3" />
-                <rect x="20" y="3" width="3" height="3" />
-                <rect x="23" y="6" width="3" height="3" />
-                {/* Middle wave */}
-                <rect x="2" y="11" width="3" height="3" />
-                <rect x="5" y="14" width="3" height="3" />
-                <rect x="8" y="11" width="3" height="3" />
-                <rect x="11" y="14" width="3" height="3" />
-                <rect x="14" y="11" width="3" height="3" />
-                <rect x="17" y="14" width="3" height="3" />
-                <rect x="20" y="11" width="3" height="3" />
-                <rect x="23" y="14" width="3" height="3" />
-                {/* Bottom wave */}
-                <rect x="2" y="19" width="3" height="3" />
-                <rect x="5" y="22" width="3" height="3" />
-                <rect x="8" y="19" width="3" height="3" />
-                <rect x="11" y="22" width="3" height="3" />
-                <rect x="14" y="19" width="3" height="3" />
-                <rect x="17" y="22" width="3" height="3" />
-                <rect x="20" y="19" width="3" height="3" />
-                <rect x="23" y="22" width="3" height="3" />
-              </svg>
+              <WaveLogoIcon size={56} />
             </div>
             
             <h1 style={{ 
@@ -81,19 +53,12 @@ export function HomePage() {
           style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
         >
           <Link to="/host" className="btn btn-primary" style={{ padding: 'var(--space-lg) var(--space-xl)' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="10 8 16 12 10 16 10 8" />
-            </svg>
+            <PlayCircleIcon size={24} />
             Host Playlist
           </Link>
           
           <Link to="/join" className="btn btn-secondary" style={{ padding: 'var(--space-lg) var(--space-xl)' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-              <polyline points="10 17 15 12 10 7" />
-              <line x1="15" y1="12" x2="3" y2="12" />
-            </svg>
+            <JoinIcon size={24} />
             Join Playlist
           </Link>
         </motion.div>
