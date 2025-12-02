@@ -108,13 +108,26 @@ export function SessionPage() {
   
   // Clear waiting state when tracks arrive
   useEffect(() => {
+    console.log('>>> useEffect check:', { isWaitingForSync, trackCount: sessionState?.tracks?.length });
     if (isWaitingForSync && sessionState?.tracks && sessionState.tracks.length > 0) {
+      console.log('>>> Clearing isWaitingForSync (tracks arrived)');
       setIsWaitingForSync(false);
     }
   }, [isWaitingForSync, sessionState?.tracks]);
   
   // Are we actively loading playlist data?
   const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing || isWaitingForSync;
+  
+  // Debug: log render state
+  console.log('>>> RENDER:', { 
+    isLoadingPlaylist, 
+    isLoadingExisting, 
+    isCreatingPlaylist, 
+    isRefreshing, 
+    isWaitingForSync,
+    trackCount: sessionState?.tracks?.length,
+    showPlaylistPicker,
+  });
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -274,13 +287,16 @@ export function SessionPage() {
       
       // Use flushSync to force React to render loading state BEFORE socket events fire
       // This prevents React from batching all updates and skipping the loading state
+      console.log('>>> About to flushSync, hasTracks:', hasTracks);
       flushSync(() => {
         if (hasTracks) {
+          console.log('>>> Setting isWaitingForSync = true');
           setIsWaitingForSync(true);
         }
         setShowPlaylistPicker(false);
         setExistingPlaylistId(''); // Clear input
       });
+      console.log('>>> After flushSync, about to call setPlaylist');
       
       // Now trigger socket (after loading state is rendered)
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
