@@ -75,8 +75,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<any> {
 
 // Get host's access token (with auto-refresh)
 export async function getHostAccessToken(hostToken: string): Promise<{ token: string; countryCode: string; userId: string } | null> {
+  console.log(`>>> getHostAccessToken: looking up "${hostToken.substring(0, 8)}...", hostTokens has ${hostTokens.size} entries`);
+  console.log(`>>> hostTokens keys:`, Array.from(hostTokens.keys()).map(k => k.substring(0, 8) + '...'));
   const tokens = hostTokens.get(hostToken);
-  if (!tokens) return null;
+  if (!tokens) {
+    console.log(`>>> Token NOT found for "${hostToken.substring(0, 8)}..."`);
+    return null;
+  }
+  console.log(`>>> Token FOUND for "${hostToken.substring(0, 8)}..."`)
   
   // Refresh if expired (with 5 min buffer)
   if (tokens.expiresAt < Date.now() + 300000) {

@@ -40,7 +40,7 @@ router.get('/search', async (req: Request, res: Response) => {
     console.log(`>>> Guest search: sessionId=${sessionId}, session exists=${!!session}, hostToken exists=${!!session?.hostToken}`);
     if (session?.hostToken) {
       hostToken = session.hostToken;
-      console.log(`Guest search using session ${sessionId} hostToken`);
+      console.log(`>>> Guest search using session ${sessionId} hostToken: "${hostToken.substring(0, 8)}..."`);
     }
   }
   

@@ -153,6 +153,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     }
 
     // Store tokens
+    console.log(`>>> Storing tokens for hostToken "${pending.hostToken.substring(0, 8)}..."`);
     hostTokens.set(pending.hostToken, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
@@ -161,6 +162,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       userId,
       username,
     });
+    console.log(`>>> hostTokens now has ${hostTokens.size} entries`);
     
     saveTokens(hostTokens);
 
