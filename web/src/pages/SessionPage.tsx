@@ -5,7 +5,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
 import { useSearch } from '../hooks/useSearch';
 import { TrackItem } from '../components/TrackItem';
-import { CloseIcon, TidalLogo, RefreshIcon, ReloadIcon, SpinnerIcon, MusicIcon, MenuIcon, ExitIcon, SearchIcon } from '../components/Icons';
+import { PlaylistPicker } from '../components/PlaylistPicker';
+import { SessionHeader } from '../components/SessionHeader';
+import { SearchResults } from '../components/SearchResults';
+import { TidalLogo, MusicIcon } from '../components/Icons';
 import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
@@ -411,411 +414,61 @@ export function SessionPage() {
   // Playlist picker for host (no playlist selected yet)
   if (showPlaylistPicker && sessionState.isHost) {
     return (
-      <div className="page page-centered">
-        <div className="container" style={{ maxWidth: '500px' }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="card" style={{ padding: 'var(--space-xl)', position: 'relative' }}>
-              {/* Close button - only show if there's already a playlist */}
-              {sessionState.tidalPlaylistId && (
-                <button
-                  onClick={() => setShowPlaylistPicker(false)}
-                  style={{
-                    position: 'absolute',
-                    top: 'var(--space-md)',
-                    right: 'var(--space-md)',
-                    background: 'none',
-                    border: 'none',
-                    padding: '8px',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                  }}
-                  title="Cancel"
-                >
-                  <CloseIcon size={20} />
-                </button>
-              )}
-              
-              {/* Playlist icon */}
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  margin: '0 auto var(--space-lg)',
-                  borderRadius: '16px',
-                  background: 'var(--gradient-glow)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <TidalLogo size={32} style={{ color: 'var(--bg-primary)' }} />
-              </div>
-              
-              <h2 style={{ marginBottom: 'var(--space-sm)', textAlign: 'center' }}>
-                Choose a Playlist
-              </h2>
-              <p className="text-secondary" style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>
-                Create new or continue editing an existing one
-              </p>
-              
-              {/* Resume last playlist */}
-              {lastPlaylistId && (
-                <div style={{ marginBottom: 'var(--space-lg)' }}>
-                  <button
-                    onClick={() => handleUseExistingPlaylist(lastPlaylistId)}
-                    disabled={isLoadingExisting}
-                    className="btn btn-secondary"
-                    style={{ 
-                      width: '100%', 
-                      padding: 'var(--space-md)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 'var(--space-sm)',
-                    }}
-                  >
-                    {isLoadingExisting ? (
-                      <>Loading...</>
-                    ) : (
-                      <>
-                        <ReloadIcon size={18} />
-                        Resume Last Playlist
-                      </>
-                    )}
-                  </button>
-                  <p className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'center', marginTop: 'var(--space-xs)' }}>
-                    ID: {lastPlaylistId.substring(0, 8)}...
-                  </p>
-                  {existingPlaylistError && (
-                    <p style={{ color: '#ff6b6b', fontSize: '0.8rem', marginTop: 'var(--space-sm)', textAlign: 'center' }}>
-                      {existingPlaylistError}
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              {/* Create new playlist */}
-              <div style={{ marginBottom: 'var(--space-lg)' }}>
-                <label className="text-secondary" style={{ display: 'block', marginBottom: 'var(--space-sm)', fontSize: '0.875rem' }}>
-                  Create new playlist
-                </label>
-                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="Name (or leave for random)"
-                    value={newPlaylistName}
-                    onChange={(e) => setNewPlaylistName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewPlaylist()}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    onClick={handleCreateNewPlaylist}
-                    disabled={isCreatingPlaylist}
-                    className="btn btn-primary"
-                  >
-                    {isCreatingPlaylist ? '...' : 'Create'}
-                  </button>
-                </div>
-              </div>
-              
-              {/* Divider */}
-              <div style={{ position: 'relative', textAlign: 'center', margin: 'var(--space-lg) 0' }}>
-                <div style={{ 
-                  position: 'absolute', 
-                  left: 0, 
-                  right: 0, 
-                  top: '50%', 
-                  height: '1px', 
-                  background: 'var(--bg-elevated)' 
-                }} />
-                <span style={{ 
-                  position: 'relative', 
-                  background: 'var(--bg-card)', 
-                  padding: '0 var(--space-md)',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.875rem',
-                }}>
-                  or edit existing
-                </span>
-              </div>
-              
-              {/* Use existing playlist */}
-              <div>
-                <label className="text-secondary" style={{ display: 'block', marginBottom: 'var(--space-sm)', fontSize: '0.875rem' }}>
-                  Paste playlist ID or URL from Tidal
-                </label>
-                <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g., abc123-def456 or tidal.com/playlist/..."
-                    value={existingPlaylistId}
-                    onChange={(e) => {
-                      setExistingPlaylistId(e.target.value);
-                      setExistingPlaylistError('');
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUseExistingPlaylist()}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    onClick={() => handleUseExistingPlaylist()}
-                    disabled={isLoadingExisting || !existingPlaylistId.trim()}
-                    className="btn btn-secondary"
-                  >
-                    {isLoadingExisting ? '...' : 'Load'}
-                  </button>
-                </div>
-                {existingPlaylistError && (
-                  <p style={{ color: '#ff6b6b', fontSize: '0.8rem', marginTop: 'var(--space-sm)' }}>
-                    {existingPlaylistError}
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            {/* Share code hint */}
-            <p className="text-muted" style={{ marginTop: 'var(--space-lg)', textAlign: 'center', fontSize: '0.875rem' }}>
-              Session code: <code style={{ color: 'var(--accent-cyan)' }}>{sessionId}</code>
-            </p>
-          </motion.div>
-        </div>
-      </div>
+      <PlaylistPicker
+        sessionId={sessionId}
+        lastPlaylistId={lastPlaylistId}
+        existingPlaylistId={existingPlaylistId}
+        newPlaylistName={newPlaylistName}
+        existingPlaylistError={existingPlaylistError}
+        isLoadingExisting={isLoadingExisting}
+        isCreatingPlaylist={isCreatingPlaylist}
+        hasLinkedPlaylist={!!sessionState.tidalPlaylistId}
+        onClose={() => setShowPlaylistPicker(false)}
+        onCreateNewPlaylist={handleCreateNewPlaylist}
+        onUseExistingPlaylist={handleUseExistingPlaylist}
+        onNewPlaylistNameChange={setNewPlaylistName}
+        onExistingPlaylistIdChange={(id) => {
+          setExistingPlaylistId(id);
+          setExistingPlaylistError('');
+        }}
+      />
     );
   }
 
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* Header */}
-      <header className="container" style={{ paddingTop: 'var(--space-lg)', paddingBottom: 'var(--space-md)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{sessionState.name}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <button
-                onClick={copyJoinUrl}
-                className="text-muted"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <code style={{ 
-                  background: 'var(--bg-elevated)', 
-                  padding: '2px 8px', 
-                  borderRadius: 'var(--radius-sm)',
-                  letterSpacing: '0.1em',
-                }}>
-                  {sessionId}
-                </code>
-                {copied ? '✓' : '📋'}
-              </button>
-              {sessionState.isHost && (
-                <span style={{
-                  padding: '4px 8px',
-                  background: 'var(--accent-cyan)',
-                  color: 'var(--bg-primary)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                }}>
-                  HOST
-                </span>
-              )}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-            {sessionState.isHost && sessionState.tidalPlaylistId && (
-              <button 
-                onClick={refreshPlaylistFromTidal}
-                disabled={isRefreshing}
-                className="btn btn-ghost btn-sm"
-                title="Refresh from Tidal"
-              >
-                <motion.div
-                  animate={isRefreshing ? { rotate: 360 } : {}}
-                  transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
-                  style={{ display: 'flex' }}
-                >
-                  <RefreshIcon size={18} />
-                </motion.div>
-              </button>
-            )}
-            {sessionState.isHost && (
-              <button 
-                onClick={() => setShowPlaylistPicker(true)}
-                className="btn btn-ghost btn-sm"
-                title="Switch playlist"
-              >
-                <MenuIcon size={18} />
-              </button>
-            )}
-            <button onClick={handleShare} className="btn btn-secondary btn-sm">
-              Invite
-            </button>
-            <button 
-              onClick={() => navigate('/')}
-              className="btn btn-ghost btn-sm"
-              title="Exit session"
-            >
-              <ExitIcon size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Search input */}
-        <div style={{ position: 'relative', zIndex: 15 }}>
-          <input
-            type="text"
-            className="input"
-            placeholder="Search for songs to add..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              paddingLeft: '44px',
-              paddingRight: searchQuery ? '44px' : undefined,
-            }}
-          />
-          <SearchIcon 
-            size={20} 
-            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} 
-          />
-          {searchQuery && (
-            <button
-              onClick={clearSearch}
-              style={{
-                position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)',
-              }}
-            >
-              <CloseIcon size={16} />
-            </button>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)', borderBottom: '1px solid rgba(255,255,255,0.1)', alignItems: 'center' }}>
-          <button
-            onClick={() => setActiveTab('playlist')}
-            style={{
-              background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
-              color: activeTab === 'playlist' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-              borderBottom: activeTab === 'playlist' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-              cursor: 'pointer', fontWeight: '500',
-            }}
-          >
-            Playlist ({sessionState.tracks.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('participants')}
-            style={{
-              background: 'none', border: 'none', padding: 'var(--space-sm) var(--space-md)',
-              color: activeTab === 'participants' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-              borderBottom: activeTab === 'participants' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-              cursor: 'pointer', fontWeight: '500',
-            }}
-          >
-            People ({sessionState.participants.length})
-          </button>
-          
-        </div>
-      </header>
+      <SessionHeader
+        sessionName={sessionState.name}
+        sessionId={sessionId}
+        isHost={sessionState.isHost}
+        hasPlaylist={!!sessionState.tidalPlaylistId}
+        isRefreshing={isRefreshing}
+        copied={copied}
+        trackCount={sessionState.tracks.length}
+        participantCount={sessionState.participants.length}
+        activeTab={activeTab}
+        searchQuery={searchQuery}
+        onCopyCode={copyJoinUrl}
+        onRefresh={refreshPlaylistFromTidal}
+        onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
+        onShare={handleShare}
+        onExit={() => navigate('/')}
+        onSearchChange={setSearchQuery}
+        onClearSearch={clearSearch}
+        onTabChange={setActiveTab}
+      />
 
       {/* Main content */}
       <main className="container" style={{ flex: 1, overflow: 'auto', paddingBottom: '120px' }}>
-        {/* Search Results Overlay */}
-        {searchQuery.trim().length >= 2 && (
-          <>
-            <div onClick={clearSearch} style={{ position: 'fixed', inset: 0, zIndex: 5 }} />
-            <div style={{ position: 'relative', zIndex: 10, marginBottom: 'var(--space-lg)' }}>
-              {isSearching ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    style={{ display: 'inline-block' }}
-                  >
-                    <SpinnerIcon size={24} />
-                  </motion.div>
-                </div>
-              ) : searchResults.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-                  No results for "{searchQuery}"
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {/* Error message */}
-                  {addError && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      style={{
-                        padding: 'var(--space-md)',
-                        background: 'rgba(255, 100, 100, 0.15)',
-                        border: '1px solid rgba(255, 100, 100, 0.3)',
-                        borderRadius: 'var(--radius-md)',
-                        color: '#ff6b6b',
-                        fontSize: '0.875rem',
-                        textAlign: 'center',
-                      }}
-                    >
-                      ❌ {addError}
-                    </motion.div>
-                  )}
-                  {searchResults.map((track) => (
-                    <motion.div
-                      key={track.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="card"
-                      style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}
-                    >
-                      <img
-                        src={track.albumArt}
-                        alt={track.album}
-                        style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {track.title}
-                        </div>
-                        <div className="text-secondary" style={{ fontSize: '0.875rem' }}>
-                          {track.artist}
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleAddTrack(track)} 
-                        className="btn btn-primary btn-sm"
-                        disabled={addingTrackId === track.id}
-                        style={{ minWidth: '60px' }}
-                      >
-                        {addingTrackId === track.id ? (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                            style={{ width: '16px', height: '16px' }}
-                          >
-                            <SpinnerIcon size={16} />
-                          </motion.div>
-                        ) : 'Add'}
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        <SearchResults
+          searchQuery={searchQuery}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          addingTrackId={addingTrackId}
+          addError={addError}
+          onAddTrack={handleAddTrack}
+          onClearSearch={clearSearch}
+        />
 
         <AnimatePresence mode="wait">
           {activeTab === 'playlist' ? (
