@@ -115,6 +115,18 @@ export function SessionPage() {
   // Show loading spinner when not ready OR actively fetching
   const isLoadingPlaylist = !playlistReady || isLoadingExisting || isCreatingPlaylist || isRefreshing;
   
+  // DEBUG: Log state when making render decision
+  console.log('>>> RENDER DECISION:', {
+    isLoadingPlaylist,
+    playlistReady,
+    isLoadingExisting,
+    isCreatingPlaylist,
+    isRefreshing,
+    trackCount: sessionState?.tracks?.length,
+    tidalPlaylistId: sessionState?.tidalPlaylistId?.substring(0, 8),
+    showPlaylistPicker,
+  });
+  
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
     
@@ -253,11 +265,13 @@ export function SessionPage() {
     console.log('Loading playlist:', cleanId);
     
     // FIRST: Clear old tracks so we don't see stale data
+    console.log('>>> RESET START: Clearing state for new load');
     resetForLoad();
     setPlaylistReady(false);
     setIsLoadingExisting(true);
     setExistingPlaylistError('');
     setShowPlaylistPicker(false);
+    console.log('>>> RESET DONE: All setState calls queued');
     
     try {
       // Step 1: Verify playlist exists and get its info from Tidal API
