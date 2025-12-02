@@ -207,12 +207,13 @@ export function SessionPage() {
       setShowPlaylistPicker(false);
       setNewPlaylistName(''); // Clear input
       
-      // Save as last used playlist
+      // Save as last used playlist and update state
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ 
         id: data.id, 
         name: playlistName,
         createdAt: new Date().toISOString(),
       }));
+      setLastPlaylistId(data.id);
       
       // Trigger refresh to sync empty playlist to all clients (clears old tracks)
       setTimeout(() => {
@@ -288,8 +289,9 @@ export function SessionPage() {
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
       setPlaylist(cleanId, listenUrl, playlistName);
       
-      // Save as last used
+      // Save as last used and update state
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId, name: playlistName }));
+      setLastPlaylistId(cleanId);
       
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
