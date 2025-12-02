@@ -271,6 +271,11 @@ export function SessionPage() {
       const playlistName = data.playlistName;
       const hasTracks = data.tracks && data.tracks.length > 0;
       
+      // Set waiting flag BEFORE triggering socket events (order matters for race condition)
+      if (hasTracks) {
+        setIsWaitingForSync(true);
+      }
+      
       // Playlist exists! Link it to the session with its name
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
       setPlaylist(cleanId, listenUrl, playlistName);
@@ -279,11 +284,6 @@ export function SessionPage() {
       
       // Save as last used
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId, name: playlistName }));
-      
-      // Only wait for sync if playlist has tracks (otherwise it's confirmed empty)
-      if (hasTracks) {
-        setIsWaitingForSync(true);
-      }
       
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
@@ -879,50 +879,46 @@ export function SessionPage() {
         <AnimatePresence mode="wait">
           {activeTab === 'playlist' ? (
             <motion.div key="playlist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {sessionState.tracks.length === 0 ? (
+              {/* Priority: Loading > Empty > Tracks */}
+              {isLoadingPlaylist ? (
                 <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  {/* Show loading spinner if actively loading playlist data */}
-                  {isLoadingPlaylist ? (
-                    <>
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                        style={{
-                          width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-                          borderRadius: '50%', background: 'var(--bg-elevated)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-cyan)' }}>
-                          <path d="M9 18V5l12-2v13" />
-                          <circle cx="6" cy="18" r="3" />
-                          <circle cx="18" cy="16" r="3" />
-                        </svg>
-                      </motion.div>
-                      <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                        Loading playlist...
-                      </h3>
-                      <p className="text-muted">Fetching tracks from Tidal</p>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{
-                        width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-                        borderRadius: '50%', background: 'var(--bg-elevated)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
-                          <path d="M9 18V5l12-2v13" />
-                          <circle cx="6" cy="18" r="3" />
-                          <circle cx="18" cy="16" r="3" />
-                        </svg>
-                      </div>
-                      <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                        Playlist is empty
-                      </h3>
-                      <p className="text-muted">Search for songs above to add them</p>
-                    </>
-                  )}
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                    style={{
+                      width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+                      borderRadius: '50%', background: 'var(--bg-elevated)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-cyan)' }}>
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
+                    </svg>
+                  </motion.div>
+                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                    Loading playlist...
+                  </h3>
+                  <p className="text-muted">Fetching tracks from Tidal</p>
+                </div>
+              ) : sessionState.tracks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
+                  <div style={{
+                    width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
+                    borderRadius: '50%', background: 'var(--bg-elevated)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
+                    </svg>
+                  </div>
+                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
+                    Playlist is empty
+                  </h3>
+                  <p className="text-muted">Search for songs above to add them</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
