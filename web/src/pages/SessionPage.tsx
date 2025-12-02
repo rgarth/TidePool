@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
 import { useSearch } from '../hooks/useSearch';
 import { TrackItem } from '../components/TrackItem';
+import { CloseIcon, TidalLogo, RefreshIcon, ReloadIcon, SpinnerIcon, MusicIcon, MenuIcon, ExitIcon, SearchIcon } from '../components/Icons';
 import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
@@ -433,9 +434,7 @@ export function SessionPage() {
                   }}
                   title="Cancel"
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
+                  <CloseIcon size={20} />
                 </button>
               )}
               
@@ -452,9 +451,7 @@ export function SessionPage() {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--bg-primary)' }}>
-                  <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
-                </svg>
+                <TidalLogo size={32} style={{ color: 'var(--bg-primary)' }} />
               </div>
               
               <h2 style={{ marginBottom: 'var(--space-sm)', textAlign: 'center' }}>
@@ -484,10 +481,7 @@ export function SessionPage() {
                       <>Loading...</>
                     ) : (
                       <>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                          <path d="M3 3v5h5" />
-                        </svg>
+                        <ReloadIcon size={18} />
                         Resume Last Playlist
                       </>
                     )}
@@ -652,12 +646,7 @@ export function SessionPage() {
                   transition={isRefreshing ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
                   style={{ display: 'flex' }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                    <path d="M3 3v5h5" />
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                    <path d="M16 16h5v5" />
-                  </svg>
+                  <RefreshIcon size={18} />
                 </motion.div>
               </button>
             )}
@@ -667,11 +656,7 @@ export function SessionPage() {
                 className="btn btn-ghost btn-sm"
                 title="Switch playlist"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 6h18" />
-                  <path d="M3 12h18" />
-                  <path d="M3 18h18" />
-                </svg>
+                <MenuIcon size={18} />
               </button>
             )}
             <button onClick={handleShare} className="btn btn-secondary btn-sm">
@@ -682,11 +667,7 @@ export function SessionPage() {
               className="btn btn-ghost btn-sm"
               title="Exit session"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
+              <ExitIcon size={18} />
             </button>
           </div>
         </div>
@@ -705,13 +686,10 @@ export function SessionPage() {
               paddingRight: searchQuery ? '44px' : undefined,
             }}
           />
-          <svg
-            width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
+          <SearchIcon 
+            size={20} 
+            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} 
+          />
           {searchQuery && (
             <button
               onClick={clearSearch}
@@ -720,9 +698,7 @@ export function SessionPage() {
                 background: 'none', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)',
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
+              <CloseIcon size={16} />
             </button>
           )}
         </div>
@@ -769,9 +745,7 @@ export function SessionPage() {
                     transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                     style={{ display: 'inline-block' }}
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
+                    <SpinnerIcon size={24} />
                   </motion.div>
                 </div>
               ) : searchResults.length === 0 ? (
@@ -831,9 +805,7 @@ export function SessionPage() {
                             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                             style={{ width: '16px', height: '16px' }}
                           >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                            </svg>
+                            <SpinnerIcon size={16} />
                           </motion.div>
                         ) : 'Add'}
                       </button>
@@ -860,11 +832,7 @@ export function SessionPage() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}
                   >
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-cyan)' }}>
-                      <path d="M9 18V5l12-2v13" />
-                      <circle cx="6" cy="18" r="3" />
-                      <circle cx="18" cy="16" r="3" />
-                    </svg>
+                    <MusicIcon size={40} style={{ color: 'var(--accent-cyan)' }} />
                   </motion.div>
                   <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
                     Loading playlist...
@@ -878,11 +846,7 @@ export function SessionPage() {
                     borderRadius: '50%', background: 'var(--bg-elevated)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
-                      <path d="M9 18V5l12-2v13" />
-                      <circle cx="6" cy="18" r="3" />
-                      <circle cx="18" cy="16" r="3" />
-                    </svg>
+                    <MusicIcon size={40} style={{ color: 'var(--text-muted)' }} />
                   </div>
                   <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
                     Playlist is empty
@@ -936,9 +900,7 @@ export function SessionPage() {
         }}>
           <div className="container">
             <button onClick={openInTidal} className="btn btn-primary" style={{ width: '100%', padding: 'var(--space-md)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}>
-                <path d="M4 4L8 8L4 12L0 8ZM12 4L16 8L12 12L8 8ZM20 4L24 8L20 12L16 8ZM12 12L16 16L12 20L8 16Z"/>
-              </svg>
+              <TidalLogo size={20} style={{ marginRight: '8px' }} />
               Open in Tidal
             </button>
           </div>
