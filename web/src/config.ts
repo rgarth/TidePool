@@ -20,4 +20,39 @@ export function apiUrl(path: string): string {
   return `${API_URL}${path}`;
 }
 
+// Host token management (for cross-origin auth when cookies are blocked)
+const HOST_TOKEN_KEY = 'tidepool_host_token';
+
+export function getHostToken(): string | null {
+  return localStorage.getItem(HOST_TOKEN_KEY);
+}
+
+export function setHostToken(token: string): void {
+  localStorage.setItem(HOST_TOKEN_KEY, token);
+}
+
+export function clearHostToken(): void {
+  localStorage.removeItem(HOST_TOKEN_KEY);
+}
+
+// API fetch helper that includes the host token header
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const hostToken = getHostToken();
+  
+  const headers: HeadersInit = {
+    ...options.headers as Record<string, string>,
+  };
+  
+  // Add host token header if available
+  if (hostToken) {
+    (headers as Record<string, string>)['X-Host-Token'] = hostToken;
+  }
+  
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include', // Still send cookies as fallback
+  });
+}
+
 

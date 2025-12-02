@@ -2,7 +2,7 @@
 import { Router, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import { Server } from 'socket.io';
-import { getHostAccessToken, hostTokens } from '../services/tokens.js';
+import { getHostAccessToken, hostTokens, getHostTokenFromRequest } from '../services/tokens.js';
 import {
   searchTidal,
   createPlaylist,
@@ -31,10 +31,10 @@ router.get('/search', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Query parameter required' });
   }
 
-  // Try to get host's token from cookie first
-  let hostToken = req.cookies.tidepool_host;
+  // Try to get host's token from request (header or cookie)
+  let hostToken = getHostTokenFromRequest(req);
   
-  // If no cookie but sessionId provided, use session's hostToken (for guests)
+  // If no token but sessionId provided, use session's hostToken (for guests)
   if (!hostToken && sessionId && typeof sessionId === 'string') {
     const session = sessions.get(sessionId.toUpperCase());
     if (session?.hostToken) {
@@ -140,7 +140,7 @@ router.get('/playlists', async (req: Request, res: Response) => {
 router.post('/playlists', async (req: Request, res: Response) => {
   const { name, description } = req.body;
   
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
@@ -175,7 +175,7 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
   const { playlistId } = req.params;
   const { trackIds, sessionId } = req.body;
   
-  let hostToken = req.cookies.tidepool_host;
+  let hostToken = getHostTokenFromRequest(req);
   if (!hostToken && sessionId) {
     const session = sessions.get(sessionId.toUpperCase());
     if (session?.hostToken) {
@@ -220,7 +220,7 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   const { playlistId } = req.params;
   const { trackIds, sessionId } = req.body;
   
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
@@ -256,7 +256,7 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
 router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
   const { playlistId } = req.params;
 
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
@@ -287,7 +287,7 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   const { playlistId } = req.params;
   const { sessionId } = req.query;
 
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {

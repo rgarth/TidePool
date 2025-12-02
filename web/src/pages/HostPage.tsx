@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { API_URL } from '../config';
+import { API_URL, apiFetch } from '../config';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -12,9 +12,7 @@ export function HostPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/auth/status`, {
-          credentials: 'include',
-        });
+        const response = await apiFetch('/api/auth/status');
         const data = await response.json();
         setIsAuthenticated(data.authenticated);
       } catch (err) {

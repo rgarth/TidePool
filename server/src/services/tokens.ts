@@ -99,3 +99,18 @@ export async function getHostAccessToken(hostToken: string): Promise<{ token: st
   return { token: tokens.accessToken, countryCode: tokens.countryCode, userId: tokens.userId };
 }
 
+// Extract host token from request (cookie OR header)
+// Header takes precedence (for cross-origin scenarios with third-party cookie blocking)
+import { Request } from 'express';
+
+export function getHostTokenFromRequest(req: Request): string | undefined {
+  // Check header first (X-Host-Token)
+  const headerToken = req.headers['x-host-token'];
+  if (headerToken && typeof headerToken === 'string') {
+    return headerToken;
+  }
+  
+  // Fall back to cookie
+  return req.cookies?.tidepool_host;
+}
+

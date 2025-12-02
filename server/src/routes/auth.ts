@@ -13,6 +13,7 @@ import {
   hostTokens,
   saveTokens,
   getHostAccessToken,
+  getHostTokenFromRequest,
 } from '../services/tokens.js';
 import { PendingAuth } from '../types/index.js';
 import { sessions } from './sessions.js';
@@ -169,7 +170,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       console.log(`Stored hostToken in session ${pending.sessionId}`);
     }
     
-    // Set persistent cookie
+    // Set persistent cookie (still useful for same-origin scenarios)
     res.cookie('tidepool_host', pending.hostToken, {
       httpOnly: true,
       secure: true,
@@ -177,7 +178,8 @@ router.get('/callback', async (req: Request, res: Response) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
     
-    res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success`);
+    // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
+    res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${pending.hostToken}`);
     
   } catch (err) {
     console.error('OAuth callback error:', err);
@@ -187,14 +189,15 @@ router.get('/callback', async (req: Request, res: Response) => {
 
 // Check auth status
 router.get('/status', (req: Request, res: Response) => {
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const tokens = hostToken ? hostTokens.get(hostToken) : null;
   
   res.json({
     authenticated: !!tokens,
     expiresAt: tokens?.expiresAt,
     debug: {
-      cookiePresent: !!hostToken,
+      cookiePresent: !!req.cookies?.tidepool_host,
+      headerPresent: !!req.headers['x-host-token'],
       tokensInMemory: hostTokens.size,
     }
   });
@@ -202,7 +205,7 @@ router.get('/status', (req: Request, res: Response) => {
 
 // Legacy endpoint for backwards compatibility
 router.get('/status/:sessionId', (req: Request, res: Response) => {
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   const tokens = hostToken ? hostTokens.get(hostToken) : null;
   res.json({
     authenticated: !!tokens,
@@ -212,7 +215,7 @@ router.get('/status/:sessionId', (req: Request, res: Response) => {
 
 // Get credentials for Tidal Player SDK
 router.get('/credentials', async (req: Request, res: Response) => {
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   
   if (!hostToken) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -236,7 +239,7 @@ router.get('/credentials', async (req: Request, res: Response) => {
 
 // Logout
 router.post('/logout', (req: Request, res: Response) => {
-  const hostToken = req.cookies.tidepool_host;
+  const hostToken = getHostTokenFromRequest(req);
   if (hostToken) {
     hostTokens.delete(hostToken);
   }

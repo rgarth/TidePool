@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
-import { API_URL } from '../config';
+import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
 export function SessionPage() {
@@ -58,13 +58,24 @@ export function SessionPage() {
   
   // Check if just returned from auth
   const authSuccess = searchParams.get('auth') === 'success';
+  const urlToken = searchParams.get('token');
+  
+  // Extract and store token from URL (for cross-origin auth when cookies are blocked)
+  useEffect(() => {
+    if (authSuccess && urlToken) {
+      console.log('Storing auth token from URL');
+      setHostToken(urlToken);
+      // Clean up URL (remove token param)
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('token');
+      navigate(`/session/${sessionId}?${newParams.toString()}`, { replace: true });
+    }
+  }, [authSuccess, urlToken, navigate, sessionId, searchParams]);
   
   // Check authentication status
   const checkAuthStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/status`, {
-        credentials: 'include',
-      });
+      const response = await apiFetch('/api/auth/status');
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
     } catch (err) {
@@ -74,8 +85,12 @@ export function SessionPage() {
   
   // Check auth on mount and after successful auth
   useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus, authSuccess]);
+    // Small delay after storing token to ensure it's saved
+    const timer = setTimeout(() => {
+      checkAuthStatus();
+    }, authSuccess && urlToken ? 100 : 0);
+    return () => clearTimeout(timer);
+  }, [checkAuthStatus, authSuccess, urlToken]);
 
   // Show playlist picker for host if no playlist linked yet
   useEffect(() => {
@@ -93,9 +108,7 @@ export function SessionPage() {
     setIsRefreshing(true);
     try {
       // Call the server to fetch from Tidal and broadcast to all clients
-      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/refresh?sessionId=${sessionId}`, {
-        credentials: 'include',
-      });
+      const response = await apiFetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/refresh?sessionId=${sessionId}`);
       
       if (!response.ok) {
         throw new Error('Failed to refresh');
@@ -118,10 +131,9 @@ export function SessionPage() {
     
     setDeletingTrackId(trackId);
     try {
-      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
+      const response = await apiFetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ 
           trackIds: [trackId],
           sessionId: sessionId?.toUpperCase(),
@@ -164,10 +176,9 @@ export function SessionPage() {
     
     setIsCreatingPlaylist(true);
     try {
-      const response = await fetch(`${API_URL}/api/tidal/playlists`, {
+      const response = await apiFetch('/api/tidal/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           name: playlistName,
           description: 'Created with TidePool',
@@ -225,9 +236,7 @@ export function SessionPage() {
     
     try {
       // Verify the playlist exists by fetching its tracks
-      const response = await fetch(`${API_URL}/api/tidal/playlists/${cleanId}/tracks`, {
-        credentials: 'include',
-      });
+      const response = await apiFetch(`/api/tidal/playlists/${cleanId}/tracks`);
       
       if (!response.ok) {
         throw new Error('Playlist not found or not accessible');
@@ -248,9 +257,7 @@ export function SessionPage() {
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
       setTimeout(() => {
-        fetch(`${API_URL}/api/tidal/playlists/${playlistIdForRefresh}/refresh?sessionId=${sessionId}`, {
-          credentials: 'include',
-        });
+        apiFetch(`/api/tidal/playlists/${playlistIdForRefresh}/refresh?sessionId=${sessionId}`);
       }, 500);
     } catch (err: any) {
       setExistingPlaylistError(err.message || 'Failed to load playlist');
@@ -292,9 +299,7 @@ export function SessionPage() {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await fetch(`${API_URL}/api/tidal/search?query=${encodeURIComponent(searchQuery)}&sessionId=${sessionId}`, {
-          credentials: 'include',
-        });
+        const response = await apiFetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}&sessionId=${sessionId}`);
         const data = await response.json();
         
         if (data.authRequired) {
@@ -330,10 +335,9 @@ export function SessionPage() {
     
     try {
       // POST to Tidal - server will fetch real playlist and broadcast to ALL clients
-      const response = await fetch(`${API_URL}/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
+      const response = await apiFetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}/tracks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ 
           trackIds: [track.tidalId],
           sessionId: sessionId, // So server knows which room to broadcast to
