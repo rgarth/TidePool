@@ -85,9 +85,9 @@ export function useSocket(): UseSocketReturn {
       } : null);
     });
 
-    socket.on('playlist_deleted', (data: { playlistId: string; message: string }) => {
-      console.log('Playlist deleted:', data.playlistId, data.message);
-      setPlaylistDeleted(true);
+    socket.on('playlist_unavailable', (data: { playlistId: string; message: string }) => {
+      console.log('Playlist unavailable:', data.playlistId, data.message);
+      setPlaylistDeleted(true); // Reusing same state variable
       setIsAwaitingSync(false); // Stop any loading state
     });
 

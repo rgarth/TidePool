@@ -9,8 +9,8 @@ interface PlaylistViewProps {
   isHost: boolean;
   deletingTrackId: string | null;
   onDeleteTrack: (trackId: string) => void;
-  /** Playlist was deleted from Tidal */
-  isDeleted?: boolean;
+  /** Playlist is no longer accessible on Tidal */
+  isUnavailable?: boolean;
   /** Callback when host wants to choose a new playlist */
   onSelectNewPlaylist?: () => void;
 }
@@ -21,38 +21,38 @@ export function PlaylistView({
   isHost,
   deletingTrackId,
   onDeleteTrack,
-  isDeleted,
+  isUnavailable,
   onSelectNewPlaylist,
 }: PlaylistViewProps) {
-  // Priority: Deleted > Loading > Empty > Tracks
-  if (isDeleted) {
+  // Priority: Unavailable > Loading > Empty > Tracks
+  if (isUnavailable) {
     return (
       <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
         <div style={{
           width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-          borderRadius: '50%', background: 'rgba(255, 100, 100, 0.15)',
+          borderRadius: '50%', background: 'rgba(255, 180, 100, 0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '2px solid rgba(255, 100, 100, 0.3)',
+          border: '2px solid rgba(255, 180, 100, 0.3)',
         }}>
-          <span style={{ fontSize: '2rem' }}>🗑️</span>
+          <span style={{ fontSize: '2rem' }}>⚠️</span>
         </div>
-        <h3 style={{ color: '#ff6b6b', marginBottom: 'var(--space-sm)' }}>
-          Playlist Deleted
+        <h3 style={{ color: '#ffb464', marginBottom: 'var(--space-sm)' }}>
+          Playlist Unavailable
         </h3>
         <p className="text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
-          This playlist has been deleted from Tidal
+          This playlist is no longer accessible on Tidal
         </p>
         {isHost && onSelectNewPlaylist && (
           <button 
             onClick={onSelectNewPlaylist}
             className="btn btn-primary"
           >
-            Select New Playlist
+            Select Different Playlist
           </button>
         )}
         {!isHost && (
           <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-            Ask the host to select a new playlist
+            Ask the host to select a different playlist
           </p>
         )}
       </div>

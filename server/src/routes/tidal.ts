@@ -212,7 +212,7 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
   } catch (error: any) {
     console.error('>>> Add tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.', deleted: true });
+      return res.status(404).json({ error: 'Playlist not found or no longer accessible.', unavailable: true });
     }
     res.status(500).json({ error: error.message });
   }
@@ -252,7 +252,7 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   } catch (error: any) {
     console.error('>>> Remove tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.', deleted: true });
+      return res.status(404).json({ error: 'Playlist not found or no longer accessible.', unavailable: true });
     }
     res.status(500).json({ error: error.message });
   }
@@ -286,7 +286,7 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
     console.error('>>> Tidal playlist tracks FAILED:', error);
     // Handle playlist not found (deleted on Tidal)
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.' });
+      return res.status(404).json({ error: 'Playlist not found or no longer accessible.' });
     }
     return res.status(500).json({ error: `Failed to load tracks: ${error.message}` });
   }
@@ -337,14 +337,14 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
       if (sessionId && typeof sessionId === 'string' && io) {
         const session = sessions.get(sessionId.toUpperCase());
         if (session) {
-          io.to(session.id).emit('playlist_deleted', { 
+          io.to(session.id).emit('playlist_unavailable', { 
             playlistId,
-            message: 'This playlist has been deleted from Tidal',
+            message: 'This playlist is no longer accessible on Tidal',
           });
         }
       }
       return res.status(404).json({ 
-        error: 'Playlist not found. It may have been deleted from Tidal.',
+        error: 'Playlist not found or no longer accessible.',
         deleted: true,
       });
     }

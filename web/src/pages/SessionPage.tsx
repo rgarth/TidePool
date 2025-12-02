@@ -426,7 +426,7 @@ export function SessionPage() {
                 isHost={sessionState.isHost}
                 deletingTrackId={deletingTrackId}
                 onDeleteTrack={handleDeleteTrack}
-                isDeleted={playlistDeleted}
+                isUnavailable={playlistDeleted}
                 onSelectNewPlaylist={() => {
                   clearDeletedFlag();
                   setShowPlaylistPicker(true);
