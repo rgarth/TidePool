@@ -9,7 +9,6 @@ interface PlaylistViewProps {
   isHost: boolean;
   deletingTrackId: string | null;
   onDeleteTrack: (trackId: string) => void;
-  formatDuration: (seconds: number) => string;
 }
 
 export function PlaylistView({
@@ -18,7 +17,6 @@ export function PlaylistView({
   isHost,
   deletingTrackId,
   onDeleteTrack,
-  formatDuration,
 }: PlaylistViewProps) {
   // Priority: Loading > Empty > Tracks
   if (isLoading) {
@@ -71,7 +69,6 @@ export function PlaylistView({
           isHost={isHost}
           isDeleting={deletingTrackId === track.id}
           onDelete={onDeleteTrack}
-          formatDuration={formatDuration}
         />
       ))}
     </div>

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { TrashIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { formatDuration } from '../utils/format';
 import type { Track } from '../types';
 
 interface TrackItemProps {
@@ -9,10 +10,9 @@ interface TrackItemProps {
   isHost: boolean;
   isDeleting: boolean;
   onDelete: (trackId: string) => void;
-  formatDuration: (seconds: number) => string;
 }
 
-export function TrackItem({ track, index, isHost, isDeleting, onDelete, formatDuration }: TrackItemProps) {
+export function TrackItem({ track, index, isHost, isDeleting, onDelete }: TrackItemProps) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}

@@ -1,0 +1,9 @@
+/**
+ * Format seconds as mm:ss or h:mm:ss
+ */
+export function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+

@@ -368,13 +368,6 @@ export function SessionPage() {
     }
   };
 
-  // Format duration
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   // Loading state
   if (!sessionState) {
     return <PageSpinner />;
@@ -448,7 +441,6 @@ export function SessionPage() {
                 isHost={sessionState.isHost}
                 deletingTrackId={deletingTrackId}
                 onDeleteTrack={handleDeleteTrack}
-                formatDuration={formatDuration}
               />
             </motion.div>
           ) : (
