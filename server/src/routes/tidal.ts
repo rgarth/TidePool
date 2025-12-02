@@ -295,18 +295,30 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   }
 
   try {
-    const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
+    // Fetch both playlist info and tracks
+    const [playlistInfo, tracks] = await Promise.all([
+      getPlaylistInfo(auth.token, playlistId),
+      getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode),
+    ]);
     
     if (sessionId && typeof sessionId === 'string' && io) {
       const session = sessions.get(sessionId.toUpperCase());
       if (session) {
         session.tracks = tracks;
-        io.to(session.id).emit('playlist_synced', { tracks });
-        console.log(`Refreshed & broadcasted ${tracks.length} tracks to session ${sessionId}`);
+        // Update session name from Tidal
+        if (playlistInfo?.name) {
+          session.name = playlistInfo.name;
+        }
+        // Broadcast tracks and name
+        io.to(session.id).emit('playlist_synced', { 
+          tracks, 
+          playlistName: playlistInfo?.name,
+        });
+        console.log(`Refreshed & broadcasted ${tracks.length} tracks to session ${sessionId} (${playlistInfo?.name})`);
       }
     }
     
-    return res.json({ success: true, tracks });
+    return res.json({ success: true, tracks, playlistName: playlistInfo?.name });
   } catch (error: any) {
     console.error('>>> Refresh playlist FAILED:', error);
     return res.status(500).json({ error: error.message });

@@ -52,9 +52,14 @@ export function useSocket(): UseSocketReturn {
     });
 
     // Playlist synced from Tidal (source of truth)
-    socket.on('playlist_synced', (data: { tracks: Track[] }) => {
-      console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks');
-      setSessionState((prev) => prev ? { ...prev, tracks: data.tracks } : null);
+    socket.on('playlist_synced', (data: { tracks: Track[]; playlistName?: string }) => {
+      console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks', data.playlistName ? `(${data.playlistName})` : '');
+      setSessionState((prev) => prev ? { 
+        ...prev, 
+        tracks: data.tracks,
+        // Update name if provided (from refresh)
+        ...(data.playlistName ? { name: data.playlistName } : {}),
+      } : null);
     });
 
     socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string; sessionName?: string }) => {
@@ -64,6 +69,7 @@ export function useSocket(): UseSocketReturn {
         tidalPlaylistId: data.tidalPlaylistId,
         tidalPlaylistUrl: data.tidalPlaylistUrl,
         name: data.sessionName || prev.name,
+        tracks: [], // Clear old tracks when switching playlists
       } : null);
     });
 
