@@ -10,6 +10,7 @@ interface UseSocketReturn {
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
   addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
+  resetForLoad: () => void;  // Clear tracks to prepare for new load
 }
 
 export function useSocket(): UseSocketReturn {
@@ -111,6 +112,12 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
+  // Reset state to prepare for loading a new playlist
+  // Call this BEFORE starting any playlist load operation
+  const resetForLoad = useCallback(() => {
+    setSessionState((prev) => prev ? { ...prev, tracks: [] } : null);
+  }, []);
+
   return {
     isConnected,
     sessionState,
@@ -118,5 +125,6 @@ export function useSocket(): UseSocketReturn {
     joinSession,
     addToPlaylist,
     setPlaylist,
+    resetForLoad,
   };
 }

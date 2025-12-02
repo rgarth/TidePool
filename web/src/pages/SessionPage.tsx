@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,6 +16,7 @@ export function SessionPage() {
     error,
     joinSession,
     setPlaylist,
+    resetForLoad,
   } = useSocket();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -252,8 +252,12 @@ export function SessionPage() {
     
     console.log('Loading playlist:', cleanId);
     
+    // FIRST: Clear old tracks so we don't see stale data
+    resetForLoad();
+    setPlaylistReady(false);
     setIsLoadingExisting(true);
     setExistingPlaylistError('');
+    setShowPlaylistPicker(false);
     
     try {
       // Step 1: Verify playlist exists and get its info from Tidal API
@@ -270,13 +274,8 @@ export function SessionPage() {
       const data = await response.json();
       const playlistName = data.playlistName;
       
-      // Step 2: Reset to loading state before triggering socket
-      // Set playlistReady=false so we show loading, not stale tracks
-      flushSync(() => {
-        setPlaylistReady(false);
-        setShowPlaylistPicker(false);
-        setExistingPlaylistId('');
-      });
+      // Step 2: Clear input field
+      setExistingPlaylistId('');
       
       // Step 3: Link playlist to session via socket
       // This triggers: playlist_linked (clears tracks) → playlist_synced (populates tracks)
