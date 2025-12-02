@@ -201,8 +201,10 @@ export function SessionPage() {
       if (!response.ok) throw new Error('Failed to create playlist');
       
       const data = await response.json();
-      setPlaylist(data.id, data.listenUrl);
+      // Pass playlist name so it updates session name too
+      setPlaylist(data.id, data.listenUrl, playlistName);
       setShowPlaylistPicker(false);
+      setNewPlaylistName(''); // Clear input
       
       // Save as last used playlist
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ 
@@ -210,6 +212,11 @@ export function SessionPage() {
         name: playlistName,
         createdAt: new Date().toISOString(),
       }));
+      
+      // Trigger refresh to sync empty playlist to all clients (clears old tracks)
+      setTimeout(() => {
+        apiFetch(`/api/tidal/playlists/${data.id}/refresh?sessionId=${sessionId}`);
+      }, 300);
     } catch (err) {
       console.error('Failed to create playlist:', err);
     } finally {
@@ -435,7 +442,29 @@ export function SessionPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="card" style={{ padding: 'var(--space-xl)' }}>
+            <div className="card" style={{ padding: 'var(--space-xl)', position: 'relative' }}>
+              {/* Close button - only show if there's already a playlist */}
+              {sessionState.tidalPlaylistId && (
+                <button
+                  onClick={() => setShowPlaylistPicker(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 'var(--space-md)',
+                    right: 'var(--space-md)',
+                    background: 'none',
+                    border: 'none',
+                    padding: '8px',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                  }}
+                  title="Cancel"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              
               {/* Playlist icon */}
               <div
                 style={{
