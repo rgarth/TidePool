@@ -39,8 +39,14 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: S
             </div>
             
             <p className="text-secondary text-sm mb-xs">Code</p>
-            <code className="session-code-lg mb-lg" style={{ display: 'inline-block' }}>
+            <code 
+              className="session-code-lg mb-lg" 
+              style={{ display: 'inline-block', cursor: 'pointer' }}
+              onClick={onCopyLink}
+              title="Tap to copy invite link"
+            >
               {sessionId}
+              {copied && <span className="text-sm" style={{ marginLeft: 8 }}>✓</span>}
             </code>
             
             <button className="btn btn-primary btn-block mt-lg" onClick={onCopyLink}>
