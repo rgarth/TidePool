@@ -102,8 +102,18 @@ export function SessionPage() {
   // Refresh playlist from Tidal (source of truth)
   const [isRefreshing, setIsRefreshing] = useState(false);
   
+  // Track when we're waiting for socket to sync tracks after linking a playlist
+  const [isWaitingForSync, setIsWaitingForSync] = useState(false);
+  
+  // Clear waiting state when tracks arrive
+  useEffect(() => {
+    if (isWaitingForSync && sessionState?.tracks && sessionState.tracks.length > 0) {
+      setIsWaitingForSync(false);
+    }
+  }, [isWaitingForSync, sessionState?.tracks]);
+  
   // Are we actively loading playlist data?
-  const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing;
+  const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing || isWaitingForSync;
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -247,6 +257,7 @@ export function SessionPage() {
       
       const data = await response.json();
       const playlistName = data.playlistName;
+      const hasTracks = data.tracks && data.tracks.length > 0;
       
       // Playlist exists! Link it to the session with its name
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
@@ -256,6 +267,11 @@ export function SessionPage() {
       
       // Save as last used
       localStorage.setItem('tidepool_last_playlist', JSON.stringify({ id: cleanId, name: playlistName }));
+      
+      // Only wait for sync if playlist has tracks (otherwise it's confirmed empty)
+      if (hasTracks) {
+        setIsWaitingForSync(true);
+      }
       
       // Trigger a refresh to sync tracks to all clients
       const playlistIdForRefresh = cleanId; // Capture in closure
