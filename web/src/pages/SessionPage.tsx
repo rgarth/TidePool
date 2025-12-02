@@ -101,21 +101,9 @@ export function SessionPage() {
 
   // Refresh playlist from Tidal (source of truth)
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasLoadedPlaylist, setHasLoadedPlaylist] = useState(false);
   
-  // Track when playlist has been loaded (to distinguish loading from empty)
-  // Reset when playlist changes, mark loaded when we get tracks or confirm empty
-  useEffect(() => {
-    // If no playlist linked yet, nothing to load
-    if (!sessionState?.tidalPlaylistId) {
-      setHasLoadedPlaylist(false);
-      return;
-    }
-    // If we have tracks, we've definitely loaded
-    if (sessionState.tracks.length > 0) {
-      setHasLoadedPlaylist(true);
-    }
-  }, [sessionState?.tidalPlaylistId, sessionState?.tracks.length]);
+  // Are we actively loading playlist data?
+  const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing;
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
@@ -131,12 +119,8 @@ export function SessionPage() {
       
       // Server will broadcast 'playlist_synced' to all clients
       console.log('Refresh requested');
-      // Mark as loaded (even if empty) after successful refresh
-      setHasLoadedPlaylist(true);
     } catch (err) {
       console.error('Failed to refresh playlist:', err);
-      // Still mark as loaded so we don't show spinner forever
-      setHasLoadedPlaylist(true);
     } finally {
       setIsRefreshing(false);
     }
@@ -836,8 +820,8 @@ export function SessionPage() {
             <motion.div key="playlist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {sessionState.tracks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  {/* Show loading spinner if playlist exists but hasn't loaded yet */}
-                  {sessionState.tidalPlaylistId && !hasLoadedPlaylist ? (
+                  {/* Show loading spinner if actively loading playlist data */}
+                  {isLoadingPlaylist ? (
                     <>
                       <motion.div
                         animate={{ rotate: 360 }}
