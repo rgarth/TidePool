@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
+import { useSearch } from '../hooks/useSearch';
 import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
@@ -19,11 +20,8 @@ export function SessionPage() {
     resetForLoad,
   } = useSocket();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -323,44 +321,6 @@ export function SessionPage() {
       }
     }
   }, [error, navigate]);
-
-  // Debounced search
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (searchQuery.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        const response = await apiFetch(`/api/tidal/search?query=${encodeURIComponent(searchQuery)}&sessionId=${sessionId}`);
-        const data = await response.json();
-        
-        if (data.authRequired) {
-          setSearchResults([]);
-          return;
-        }
-        
-        setSearchResults(data.tracks || []);
-      } catch (err) {
-        console.error('Search failed:', err);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-  }, [searchQuery]);
-
-  // Clear search
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-  };
 
   // Add track to playlist - POST to Tidal, server broadcasts real playlist to everyone
   const handleAddTrack = async (track: SearchResult) => {
