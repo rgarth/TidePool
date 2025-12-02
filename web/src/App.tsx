@@ -15,7 +15,7 @@ function App() {
         <Route path="/join/:sessionId" element={<JoinPage />} />
         <Route path="/session/:sessionId" element={<SessionPage />} />
       </Routes>
-      <Analytics />
+      <Analytics scriptSrc="/va/script.js" />
     </div>
   );
 }
