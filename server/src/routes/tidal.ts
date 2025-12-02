@@ -278,6 +278,10 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
     
   } catch (error: any) {
     console.error('>>> Tidal playlist tracks FAILED:', error);
+    // Handle playlist not found (deleted on Tidal)
+    if (error.message === 'PLAYLIST_NOT_FOUND') {
+      return res.status(404).json({ error: 'Playlist not found. It may have been deleted from Tidal.' });
+    }
     return res.status(500).json({ error: `Failed to load tracks: ${error.message}` });
   }
 });

@@ -219,6 +219,10 @@ export async function getPlaylistTrackIds(accessToken: string, playlistId: strin
   if (!response.ok) {
     const error = await response.text();
     console.error(`>>> Playlist items error (${response.status}):`, error.substring(0, 500));
+    // Throw specific error for 404 (playlist not found/deleted)
+    if (response.status === 404 || response.status === 403) {
+      throw new Error('PLAYLIST_NOT_FOUND');
+    }
     throw new Error(`Failed to get playlist items: ${response.status}`);
   }
 

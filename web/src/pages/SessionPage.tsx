@@ -259,7 +259,14 @@ export function SessionPage() {
       const response = await apiFetch(`/api/tidal/playlists/${cleanId}/tracks`);
       
       if (!response.ok) {
-        throw new Error('Playlist not found or not accessible');
+        const errorData = await response.json().catch(() => ({}));
+        // If playlist not found (404), clear it from "last used"
+        if (response.status === 404) {
+          localStorage.removeItem('tidepool_last_playlist');
+          setLastPlaylistId(null);
+          throw new Error('Playlist not found. It may have been deleted from Tidal.');
+        }
+        throw new Error(errorData.error || 'Playlist not found or not accessible');
       }
       
       const data = await response.json();
