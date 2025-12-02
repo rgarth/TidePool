@@ -81,10 +81,13 @@ export function applyTheme(themeId: string): void {
   const theme = THEME_COLORS.find(t => t.id === themeId) || THEME_COLORS[0];
   const root = document.documentElement;
   
+  // Update all accent-related CSS variables
   root.style.setProperty('--accent-cyan', theme.accent);
-  root.style.setProperty('--accent-magenta', theme.secondary);
-  root.style.setProperty('--shadow-glow-cyan', `0 0 30px ${theme.glow}`);
-  root.style.setProperty('--gradient-glow', `linear-gradient(135deg, ${theme.accent} 0%, ${theme.secondary} 50%, ${theme.accent}88 100%)`);
+  root.style.setProperty('--accent-teal', theme.secondary);
+  root.style.setProperty('--accent-deep', theme.secondary);
+  root.style.setProperty('--shadow-glow', `0 0 20px ${theme.glow}`);
+  root.style.setProperty('--shadow-glow-strong', `0 0 30px ${theme.glow.replace('0.5', '0.6')}`);
+  root.style.setProperty('--gradient-glow', `linear-gradient(135deg, ${theme.accent} 0%, ${theme.secondary} 100%)`);
 }
 
 // Initialize theme on load

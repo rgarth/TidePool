@@ -1,5 +1,11 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
+
+// Get current accent color from CSS variable
+function getAccentColor(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--accent-cyan').trim() || '#3ee0f5';
+}
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -11,6 +17,14 @@ interface ShareModalProps {
 }
 
 export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink, onCopyCode }: ShareModalProps) {
+  const [accentColor, setAccentColor] = useState(getAccentColor);
+
+  // Update color when modal opens (in case theme changed)
+  useEffect(() => {
+    if (isOpen) {
+      setAccentColor(getAccentColor());
+    }
+  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -36,7 +50,7 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink, onC
                 value={`${window.location.origin}/join/${sessionId}`}
                 size={160}
                 bgColor="transparent"
-                fgColor="#3ee0f5"
+                fgColor={accentColor}
               />
             </div>
             
