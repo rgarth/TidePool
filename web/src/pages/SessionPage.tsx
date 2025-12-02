@@ -100,21 +100,20 @@ export function SessionPage() {
     }
   }, [sessionState?.isHost, isAuthenticated, sessionState?.tidalPlaylistId]);
 
-  // Playlist loading state:
-  // - false = waiting for data, show loading spinner
-  // - true = data received (may be empty), show playlist or empty state
+  // Simple loading state: are we waiting for playlist data?
+  // Set false when starting to load, set true when socket delivers tracks
   const [playlistReady, setPlaylistReady] = useState(!sessionState?.tidalPlaylistId);
-  const [isRefreshing, setIsRefreshing] = useState(false); // For refresh button UI only
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Set ready when tracks arrive from socket
+  // Reset to "ready" when initial session loads with a playlist
   useEffect(() => {
     if (sessionState?.tidalPlaylistId && sessionState.tracks.length > 0) {
       setPlaylistReady(true);
     }
   }, [sessionState?.tidalPlaylistId, sessionState?.tracks?.length]);
   
-  // Simple: not ready = loading
-  const isLoadingPlaylist = !playlistReady;
+  // Show loading spinner when not ready OR actively fetching
+  const isLoadingPlaylist = !playlistReady || isLoadingExisting || isCreatingPlaylist || isRefreshing;
   
   const refreshPlaylistFromTidal = useCallback(async () => {
     if (!sessionState?.tidalPlaylistId) return;
