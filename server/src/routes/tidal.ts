@@ -37,19 +37,15 @@ router.get('/search', async (req: Request, res: Response) => {
   // If no token but sessionId provided, use session's hostToken (for guests)
   if (!hostToken && sessionId && typeof sessionId === 'string') {
     const session = sessions.get(sessionId.toUpperCase());
-    console.log(`>>> Guest search: sessionId=${sessionId}, session.id=${session?.id}, hostToken=${session?.hostToken?.substring(0, 8) || 'none'}...`);
     if (session?.hostToken) {
       hostToken = session.hostToken;
-      console.log(`>>> Using session hostToken: "${hostToken.substring(0, 8)}..."`);
+      console.log(`Guest search using session ${sessionId} hostToken`);
     }
-  } else if (hostToken) {
-    console.log(`>>> Using request token (cookie/header): "${hostToken.substring(0, 8)}..."`);
   }
   
   const auth = hostToken ? await getHostAccessToken(hostToken) : null;
   
   if (!auth) {
-    console.log(`>>> Search auth failed: hostToken=${hostToken ? 'present' : 'missing'}, auth=${auth ? 'valid' : 'null'}`);
     return res.status(401).json({ error: 'Not authenticated. Please login with Tidal.', authRequired: true });
   }
   
