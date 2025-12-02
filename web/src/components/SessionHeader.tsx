@@ -4,17 +4,14 @@ import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon } from './Icon
 
 interface SessionHeaderProps {
   sessionName: string;
-  sessionId?: string;
   isHost: boolean;
   hasPlaylist: boolean;
   isRefreshing: boolean;
-  copied: boolean;
   trackCount: number;
   participantCount: number;
   activeTab: 'playlist' | 'participants';
   searchQuery: string;
   searchDisabled?: boolean;
-  onCopyCode: () => void;
   onRefresh: () => void;
   onOpenPlaylistPicker: () => void;
   onShare: () => void;
@@ -26,17 +23,14 @@ interface SessionHeaderProps {
 
 export function SessionHeader({
   sessionName,
-  sessionId,
   isHost,
   hasPlaylist,
   isRefreshing,
-  copied,
   trackCount,
   participantCount,
   activeTab,
   searchQuery,
   searchDisabled,
-  onCopyCode,
   onRefresh,
   onOpenPlaylistPicker,
   onShare,
@@ -82,21 +76,11 @@ export function SessionHeader({
 
   return (
     <header className="header container">
-      {/* Top row: Name, code, actions */}
+      {/* Top row: Name + HOST badge, actions */}
       <div className="header-row">
-        <div className="header-info">
+        <div className="header-info flex items-center gap-sm">
           <h1 className="header-title truncate">{sessionName}</h1>
-          <div className="header-meta">
-            <code 
-              className="session-code" 
-              onClick={onCopyCode}
-              title={copied ? 'Copied!' : 'Tap to copy'}
-            >
-              {sessionId}
-              {copied && <span className="text-accent"> ✓</span>}
-            </code>
-            {isHost && <span className="badge badge-accent">HOST</span>}
-          </div>
+          {isHost && <span className="badge badge-accent flex-shrink-0">HOST</span>}
         </div>
         
         <div className="header-actions">

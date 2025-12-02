@@ -388,17 +388,14 @@ export function SessionPage() {
     <div className="page" style={{ height: '100vh' }}>
       <SessionHeader
         sessionName={sessionState.name}
-        sessionId={sessionId}
         isHost={sessionState.isHost}
         hasPlaylist={!!sessionState.tidalPlaylistId}
         isRefreshing={isRefreshing}
-        copied={copied}
         trackCount={sessionState.tracks.length}
         participantCount={sessionState.participants.length}
         activeTab={activeTab}
         searchQuery={searchQuery}
         searchDisabled={playlistDeleted}
-        onCopyCode={copyJoinUrl}
         onRefresh={refreshPlaylistFromTidal}
         onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
         onShare={handleShare}
