@@ -1,14 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QRCodeSVG } from 'qrcode.react';
 import { useSocket } from '../hooks/useSocket';
 import { useSearch } from '../hooks/useSearch';
-import { TrackItem } from '../components/TrackItem';
 import { PlaylistPicker } from '../components/PlaylistPicker';
 import { SessionHeader } from '../components/SessionHeader';
 import { SearchResults } from '../components/SearchResults';
-import { TidalLogo, MusicIcon } from '../components/Icons';
+import { PlaylistView } from '../components/PlaylistView';
+import { ParticipantsList } from '../components/ParticipantsList';
+import { ShareModal } from '../components/ShareModal';
+import { BottomBar } from '../components/BottomBar';
 import { apiFetch, setHostToken } from '../config';
 import type { SearchResult } from '../types';
 
@@ -473,140 +474,36 @@ export function SessionPage() {
         <AnimatePresence mode="wait">
           {activeTab === 'playlist' ? (
             <motion.div key="playlist" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {/* Priority: Loading > Empty > Tracks */}
-              {isLoadingPlaylist ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                    style={{
-                      width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-                      borderRadius: '50%', background: 'var(--bg-elevated)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    <MusicIcon size={40} style={{ color: 'var(--accent-cyan)' }} />
-                  </motion.div>
-                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                    Loading playlist...
-                  </h3>
-                  <p className="text-muted">Fetching tracks from Tidal</p>
-                </div>
-              ) : sessionState.tracks.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-                  <div style={{
-                    width: '80px', height: '80px', margin: '0 auto var(--space-lg)',
-                    borderRadius: '50%', background: 'var(--bg-elevated)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <MusicIcon size={40} style={{ color: 'var(--text-muted)' }} />
-                  </div>
-                  <h3 className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>
-                    Playlist is empty
-                  </h3>
-                  <p className="text-muted">Search for songs above to add them</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                  {sessionState.tracks.map((track, index) => (
-                    <TrackItem
-                      key={track.id}
-                      track={track}
-                      index={index}
-                      isHost={sessionState.isHost}
-                      isDeleting={deletingTrackId === track.id}
-                      onDelete={handleDeleteTrack}
-                      formatDuration={formatDuration}
-                    />
-                  ))}
-                </div>
-              )}
+              <PlaylistView
+                tracks={sessionState.tracks}
+                isLoading={isLoadingPlaylist}
+                isHost={sessionState.isHost}
+                deletingTrackId={deletingTrackId}
+                onDeleteTrack={handleDeleteTrack}
+                formatDuration={formatDuration}
+              />
             </motion.div>
           ) : (
             <motion.div key="participants" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                {sessionState.participants.map((name, index) => (
-                  <div key={index} className="card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                    <div style={{
-                      width: '40px', height: '40px', borderRadius: '50%',
-                      background: `hsl(${(name.charCodeAt(0) * 137) % 360}, 60%, 50%)`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'white', fontWeight: '600',
-                    }}>
-                      {name.charAt(0).toUpperCase()}
-                    </div>
-                    <span>{name}</span>
-                  </div>
-                ))}
-              </div>
+              <ParticipantsList participants={sessionState.participants} />
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Bottom bar - Open in Tidal (host only) */}
-      {sessionState.isHost && sessionState.tidalPlaylistId && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: 'linear-gradient(transparent, var(--bg-primary) 20%)',
-          padding: 'var(--space-xl) var(--space-lg) var(--space-lg)',
-        }}>
-          <div className="container">
-            <button onClick={openInTidal} className="btn btn-primary" style={{ width: '100%', padding: 'var(--space-md)' }}>
-              <TidalLogo size={20} style={{ marginRight: '8px' }} />
-              Open in Tidal
-            </button>
-          </div>
-        </div>
-      )}
+      <BottomBar
+        isHost={sessionState.isHost}
+        hasPlaylist={!!sessionState.tidalPlaylistId}
+        onOpenInTidal={openInTidal}
+      />
 
-      {/* Share Modal */}
-      <AnimatePresence>
-        {showShare && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowShare(false)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 100, padding: 'var(--space-lg)',
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="card"
-              style={{ maxWidth: '400px', width: '100%', padding: 'var(--space-xl)' }}
-            >
-              <h3 style={{ marginBottom: 'var(--space-lg)', textAlign: 'center' }}>Invite Friends</h3>
-              
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-lg)' }}>
-                <QRCodeSVG
-                  value={`${window.location.origin}/join/${sessionId}`}
-                  size={180}
-                  bgColor="transparent"
-                  fgColor="#22d3ee"
-                />
-              </div>
-              
-              <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
-                <p className="text-secondary" style={{ marginBottom: 'var(--space-sm)' }}>Code</p>
-                <code style={{ fontSize: '2rem', letterSpacing: '0.2em', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                  {sessionId}
-                </code>
-              </div>
-              
-              <button onClick={copyJoinUrl} className="btn btn-primary" style={{ width: '100%' }}>
-                {copied ? 'Copied!' : 'Copy Invite Link'}
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ShareModal
+        isOpen={showShare}
+        sessionId={sessionId}
+        copied={copied}
+        onClose={() => setShowShare(false)}
+        onCopyLink={copyJoinUrl}
+      />
     </div>
   );
 }
