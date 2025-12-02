@@ -106,14 +106,15 @@ export function SessionPage() {
   // Track when we're waiting for socket to sync tracks after linking a playlist
   const [isWaitingForSync, setIsWaitingForSync] = useState(false);
   
-  // Clear waiting state when tracks arrive
+  // Clear waiting state when NEW tracks arrive (not old stale tracks)
   useEffect(() => {
-    console.log('>>> useEffect check:', { isWaitingForSync, trackCount: sessionState?.tracks?.length });
-    if (isWaitingForSync && sessionState?.tracks && sessionState.tracks.length > 0) {
-      console.log('>>> Clearing isWaitingForSync (tracks arrived)');
+    console.log('>>> useEffect check:', { isWaitingForSync, isLoadingExisting, trackCount: sessionState?.tracks?.length });
+    // Don't clear if we're still in the middle of loading (old tracks might be present)
+    if (isWaitingForSync && !isLoadingExisting && sessionState?.tracks && sessionState.tracks.length > 0) {
+      console.log('>>> Clearing isWaitingForSync (NEW tracks arrived)');
       setIsWaitingForSync(false);
     }
-  }, [isWaitingForSync, sessionState?.tracks]);
+  }, [isWaitingForSync, isLoadingExisting, sessionState?.tracks]);
   
   // Are we actively loading playlist data?
   const isLoadingPlaylist = isLoadingExisting || isCreatingPlaylist || isRefreshing || isWaitingForSync;
