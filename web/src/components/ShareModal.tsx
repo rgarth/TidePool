@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -10,6 +11,16 @@ interface ShareModalProps {
 }
 
 export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: ShareModalProps) {
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const copyCode = async () => {
+    if (sessionId) {
+      await navigator.clipboard.writeText(sessionId);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -42,11 +53,12 @@ export function ShareModal({ isOpen, sessionId, copied, onClose, onCopyLink }: S
             <code 
               className="session-code-lg mb-lg" 
               style={{ display: 'inline-block', cursor: 'pointer' }}
-              onClick={onCopyLink}
-              title="Tap to copy invite link"
+              onClick={copyCode}
+              title="Tap to copy code"
             >
               {sessionId}
             </code>
+            {codeCopied && <p className="text-accent text-sm">Code copied!</p>}
             
             <button className="btn btn-primary btn-block mt-lg" onClick={onCopyLink}>
               {copied ? 'Copied!' : 'Copy Invite Link'}
