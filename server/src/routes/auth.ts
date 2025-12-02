@@ -141,6 +141,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
+        console.log('>>> RAW USER DATA FROM TIDAL:', JSON.stringify(userData, null, 2));
         const data = userData.data || userData;
         const attrs = data.attributes || data;
         countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
