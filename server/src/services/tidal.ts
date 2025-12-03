@@ -135,44 +135,6 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
   return true;
 }
 
-// Update playlist privacy (PUBLIC or PRIVATE)
-export async function updatePlaylistPrivacy(accessToken: string, playlistId: string, isPublic: boolean): Promise<boolean> {
-  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
-  // Tidal uses 'accessType' not 'privacy'
-  const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
-  
-  console.log(`>>> Updating playlist ${playlistId} accessType to ${accessType}`);
-  
-  const body = {
-    data: {
-      type: 'playlists',
-      id: playlistId,
-      attributes: {
-        accessType,
-      },
-    },
-  };
-  
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/vnd.api+json',
-      'Accept': 'application/vnd.api+json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error(`>>> Update playlist accessType error (${response.status}):`, error.substring(0, 500));
-    return false;
-  }
-  
-  console.log(`>>> Playlist ${playlistId} accessType updated to ${accessType}`);
-  return true;
-}
-
 // Build playlist description with contributors (max 250 chars)
 // Excludes "Host" and the host's Tidal username (they own the playlist)
 export function buildContributorDescription(participants: string[], hostName?: string): string {
