@@ -4,6 +4,7 @@ import { HomePage } from './pages/HomePage';
 import { HostPage } from './pages/HostPage';
 import { JoinPage } from './pages/JoinPage';
 import { SessionPage } from './pages/SessionPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/join" element={<JoinPage />} />
         <Route path="/join/:sessionId" element={<JoinPage />} />
         <Route path="/session/:sessionId" element={<SessionPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
       </Routes>
       <Analytics scriptSrc="/va/script.js" />
     </div>

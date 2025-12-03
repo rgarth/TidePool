@@ -75,14 +75,17 @@ export function HomePage() {
         </motion.div>
 
         {/* Footer */}
-        <motion.p
+        <motion.div
           className="text-muted text-sm text-center mt-2xl"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
         >
-          Powered by Tidal • Build playlists together
-        </motion.p>
+          <p>Powered by Tidal • Build playlists together</p>
+          <Link to="/privacy" className="text-muted" style={{ fontSize: '0.75rem' }}>
+            Privacy Policy
+          </Link>
+        </motion.div>
       </div>
     </div>
   );
