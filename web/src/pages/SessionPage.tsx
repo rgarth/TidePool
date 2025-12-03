@@ -191,7 +191,9 @@ export function SessionPage() {
         isHost={sessionState.isHost}
         hasPlaylist={!!sessionState.tidalPlaylistId}
         isPublic={sessionState.isPublic ?? true}
+        isTogglingPrivacy={playlist.isTogglingPrivacy}
         onOpenInTidal={share.openInTidal}
+        onTogglePrivacy={playlist.togglePrivacy}
       />
 
       <ShareModal

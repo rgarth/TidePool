@@ -249,6 +249,37 @@ export function usePlaylistActions({
   }, [playlistId, sessionId]);
 
 
+  // Toggle playlist privacy
+  const [isTogglingPrivacy, setIsTogglingPrivacy] = useState(false);
+  
+  const togglePrivacy = useCallback(async (newIsPublic: boolean) => {
+    if (!playlistId) return false;
+    
+    setIsTogglingPrivacy(true);
+    try {
+      const response = await apiFetch(`/api/tidal/playlists/${playlistId}/privacy`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isPublic: newIsPublic,
+          sessionId: sessionId?.toUpperCase(),
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update privacy');
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Failed to toggle privacy:', err);
+      return false;
+    } finally {
+      setIsTogglingPrivacy(false);
+    }
+  }, [playlistId, sessionId]);
+
   // Clear existing playlist error when input changes
   const handleExistingPlaylistIdChange = useCallback((id: string) => {
     setExistingPlaylistId(id);
@@ -268,6 +299,7 @@ export function usePlaylistActions({
     isCreatingPlaylist,
     isLoadingExisting,
     isRefreshing,
+    isTogglingPrivacy,
     isLoading: isCreatingPlaylist || isLoadingExisting || isRefreshing,
     
     // Track operation states
@@ -281,6 +313,7 @@ export function usePlaylistActions({
     refreshPlaylist,
     addTrack,
     deleteTrack,
+    togglePrivacy,
   };
 }
 
