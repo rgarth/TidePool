@@ -142,6 +142,17 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
   
   console.log(`>>> Updating playlist ${playlistId} privacy to ${privacy}`);
   
+  const body = {
+    data: {
+      type: 'playlists',
+      id: playlistId,
+      attributes: {
+        privacy,
+      },
+    },
+  };
+  console.log('>>> PATCH body:', JSON.stringify(body));
+  
   const response = await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -149,20 +160,15 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
       'Content-Type': 'application/vnd.api+json',
       'Accept': 'application/vnd.api+json',
     },
-    body: JSON.stringify({
-      data: {
-        type: 'playlists',
-        id: playlistId,
-        attributes: {
-          privacy,
-        },
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
+  console.log(`>>> PATCH response status: ${response.status}`);
+  const responseText = await response.text();
+  console.log(`>>> PATCH response body: ${responseText.substring(0, 500)}`);
+
   if (!response.ok) {
-    const error = await response.text();
-    console.error(`>>> Update playlist privacy error (${response.status}):`, error.substring(0, 500));
+    console.error(`>>> Update playlist privacy error (${response.status}):`, responseText.substring(0, 500));
     return false;
   }
   
@@ -461,6 +467,7 @@ export async function getPlaylistInfo(accessToken: string, playlistId: string): 
   }
   
   const data = await response.json();
+  console.log('>>> PLAYLIST INFO - Raw privacy value:', JSON.stringify(data.data?.attributes?.privacy), 'All attributes:', JSON.stringify(data.data?.attributes));
   return {
     name: data.data?.attributes?.name || 'Untitled Playlist',
     description: data.data?.attributes?.description,
