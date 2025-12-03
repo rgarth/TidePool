@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { Track } from '../types/index.js';
 import { sessions } from '../routes/sessions.js';
 import { pendingAuth } from '../routes/auth.js';
+import { hostTokens } from '../services/tokens.js';
 
 export function setupSocketHandlers(io: Server): void {
   io.on('connection', (socket: Socket) => {
@@ -13,7 +14,7 @@ export function setupSocketHandlers(io: Server): void {
     let isHost = false;
 
     // Join a session
-    socket.on('join_session', ({ sessionId, displayName, asHost }) => {
+    socket.on('join_session', ({ sessionId, displayName, asHost, hostToken }) => {
       const session = sessions.get(sessionId.toUpperCase());
       
       if (!session) {
@@ -27,6 +28,16 @@ export function setupSocketHandlers(io: Server): void {
       if (asHost && !session.hostId) {
         session.hostId = socket.id;
         isHost = true;
+        
+        // If hostName not set (reconnecting with existing token), look it up
+        if (!session.hostName && hostToken) {
+          const tokens = hostTokens.get(hostToken);
+          if (tokens?.username) {
+            session.hostName = tokens.username;
+            session.hostToken = hostToken; // Also ensure hostToken is set for guests
+            console.log(`Retrieved hostName from stored token: ${tokens.username}`);
+          }
+        }
       }
       
       // Use Tidal username for host if available, otherwise use provided displayName

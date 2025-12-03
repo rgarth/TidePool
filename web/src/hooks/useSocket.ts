@@ -115,7 +115,9 @@ export function useSocket(): UseSocketReturn {
 
   const joinSession = useCallback((sessionId: string, displayName: string, asHost: boolean) => {
     if (socketRef.current) {
-      socketRef.current.emit('join_session', { sessionId, displayName, asHost });
+      // Include hostToken so server can look up username for reconnecting hosts
+      const hostToken = asHost ? localStorage.getItem('tidepool_host_token') : undefined;
+      socketRef.current.emit('join_session', { sessionId, displayName, asHost, hostToken });
     }
   }, []);
 
