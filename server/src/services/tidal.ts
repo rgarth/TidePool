@@ -136,21 +136,19 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
 }
 
 // Update playlist privacy (PUBLIC or PRIVATE)
-// NOTE: Tidal v2 API doesn't support changing accessType after creation
-// Trying 'privacy' attribute as fallback
 export async function updatePlaylistPrivacy(accessToken: string, playlistId: string, isPublic: boolean): Promise<boolean> {
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
-  const privacy = isPublic ? 'PUBLIC' : 'PRIVATE';
+  // Tidal uses 'accessType' not 'privacy'
+  const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
   
-  console.log(`>>> Attempting to update playlist ${playlistId} privacy to ${privacy}`);
+  console.log(`>>> Updating playlist ${playlistId} accessType to ${accessType}`);
   
-  // Try with 'privacy' attribute (accessType is read-only)
   const body = {
     data: {
       type: 'playlists',
       id: playlistId,
       attributes: {
-        privacy,
+        accessType,
       },
     },
   };
@@ -167,12 +165,11 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`>>> Update playlist privacy error (${response.status}):`, error.substring(0, 500));
-    // Return false but don't crash - this feature may not be supported
+    console.error(`>>> Update playlist accessType error (${response.status}):`, error.substring(0, 500));
     return false;
   }
   
-  console.log(`>>> Playlist ${playlistId} privacy updated to ${privacy}`);
+  console.log(`>>> Playlist ${playlistId} accessType updated to ${accessType}`);
   return true;
 }
 
