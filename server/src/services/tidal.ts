@@ -141,17 +141,19 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}?countryCode=${countryCode}`;
   const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
   
-  console.log(`>>> PATCH ${url} with accessType: ${accessType}`);
-  
+  // Match exact format from Tidal API docs
   const body = {
     data: {
-      type: 'playlists',
-      id: playlistId,
       attributes: {
-        accessType,
+        accessType: accessType
       },
-    },
+      id: playlistId,
+      type: 'playlists'
+    }
   };
+  
+  console.log(`>>> PATCH ${url}`);
+  console.log(`>>> Body: ${JSON.stringify(body)}`);
   
   const response = await fetch(url, {
     method: 'PATCH',
@@ -165,7 +167,7 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`>>> PATCH accessType error (${response.status}):`, error);
+    console.error(`>>> PATCH error (${response.status}):`, error);
     return false;
   }
   
