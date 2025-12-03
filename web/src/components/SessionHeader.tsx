@@ -43,7 +43,7 @@ export function SessionHeader({
   // Build menu items based on host status
   const menuItems = [];
   
-  if (isHost && hasPlaylist) {
+  if (hasPlaylist) {
     menuItems.push({
       label: 'Refresh from Tidal',
       icon: (
