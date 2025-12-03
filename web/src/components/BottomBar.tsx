@@ -1,4 +1,5 @@
-import { TidalLogo } from './Icons';
+import { useState } from 'react';
+import { TidalLogo, InfoIcon } from './Icons';
 
 interface BottomBarProps {
   isHost: boolean;
@@ -13,18 +14,43 @@ export function BottomBar({
   isPublic,
   onOpenInTidal,
 }: BottomBarProps) {
-  // Show for hosts always, and for guests only when playlist is public
-  if (!hasPlaylist || (!isHost && !isPublic)) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  
+  if (!hasPlaylist) {
     return null;
   }
+
+  // Guests can't open private playlists
+  const isDisabled = !isHost && !isPublic;
 
   return (
     <div className="bottom-bar">
       <div className="container">
-        <button className="btn btn-primary btn-block btn-lg" onClick={onOpenInTidal}>
-          <TidalLogo size={20} />
-          Open in Tidal
-        </button>
+        <div className="bottom-bar-content">
+          <button 
+            className={`btn btn-block btn-lg ${isDisabled ? 'btn-disabled' : 'btn-primary'}`}
+            onClick={isDisabled ? undefined : onOpenInTidal}
+            onMouseEnter={() => isDisabled && setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            disabled={isDisabled}
+          >
+            <TidalLogo size={20} />
+            Open in Tidal
+          </button>
+          
+          {isDisabled && showTooltip && (
+            <div className="tooltip tooltip-above">
+              This playlist is private. Ask the host to make it public on Tidal.
+            </div>
+          )}
+          
+          {!isHost && isPublic && (
+            <p className="bottom-bar-hint">
+              <InfoIcon size={14} />
+              Adding this playlist to your library creates a copy that won't sync with changes made here.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

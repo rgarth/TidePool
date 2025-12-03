@@ -148,6 +148,14 @@ export function PlaylistPicker({
         <p className="text-muted text-sm text-center mt-xl">
           Session code: <code className="text-accent">{sessionId}</code>
         </p>
+        
+        {/* Session duration info */}
+        <div className="session-info-box mt-lg">
+          <p className="text-muted text-xs">
+            This session uses your Tidal login and will remain active while your authorization is valid (typically 30-90 days). 
+            If it expires, just log in again and share a new invite link.
+          </p>
+        </div>
       </motion.div>
     </div>
   );

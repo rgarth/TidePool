@@ -197,3 +197,13 @@ export function WaveLogoIcon({ size = 56, color = 'white', style }: IconProps) {
   );
 }
 
+// Info icon (circle with i)
+export function InfoIcon({ size = 16, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} style={style}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </svg>
+  );
+}
+

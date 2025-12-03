@@ -732,6 +732,59 @@ a:hover {
   z-index: var(--z-dropdown);
 }
 
+.bottom-bar-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.bottom-bar-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  justify-content: center;
+  margin: 0;
+}
+
+/* Disabled button style */
+.btn-disabled {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-disabled:hover {
+  background: var(--bg-elevated);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 280px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+}
+
+.tooltip-above {
+  bottom: calc(100% + var(--space-sm));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 
 
 /* ─────────────────────────────────────────────────────────────────
@@ -758,6 +811,13 @@ a:hover {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
+}
+
+.session-info-box {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  border-left: 3px solid var(--accent-teal);
 }
 
 .modal-header {
