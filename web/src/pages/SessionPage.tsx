@@ -28,6 +28,7 @@ export function SessionPage() {
     error,
     isAwaitingSync,
     playlistDeleted,
+    sessionExpired,
     joinSession,
     setPlaylist,
     startLoading,
@@ -140,7 +141,7 @@ export function SessionPage() {
         participantCount={sessionState.participants.length}
         activeTab={activeTab}
         searchQuery={searchQuery}
-        searchDisabled={playlistDeleted}
+        searchDisabled={playlistDeleted || !!sessionExpired}
         onRefresh={playlist.refreshPlaylist}
         onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
         onShare={share.openShareModal}
@@ -171,6 +172,7 @@ export function SessionPage() {
                 deletingTrackId={playlist.deletingTrackId}
                 onDeleteTrack={playlist.deleteTrack}
                 isUnavailable={playlistDeleted}
+                sessionExpired={sessionExpired}
                 onSelectNewPlaylist={() => {
                   clearUnavailableFlag();
                   setShowPlaylistPicker(true);

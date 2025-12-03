@@ -3,6 +3,11 @@ import { io, Socket } from 'socket.io-client';
 import type { SessionState, Track } from '../types';
 import { WS_URL } from '../config';
 
+interface SessionExpiredInfo {
+  message: string;
+  reason: string;
+}
+
 interface UseSocketReturn {
   isConnected: boolean;
   sessionState: SessionState | null;
@@ -11,6 +16,8 @@ interface UseSocketReturn {
   isAwaitingSync: boolean;
   /** True when the current playlist was deleted from Tidal */
   playlistDeleted: boolean;
+  /** Set when OAuth session has expired */
+  sessionExpired: SessionExpiredInfo | null;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
   addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
@@ -29,6 +36,7 @@ export function useSocket(): UseSocketReturn {
   const [error, setError] = useState<string | null>(null);
   const [isAwaitingSync, setIsAwaitingSync] = useState(false);
   const [playlistDeleted, setPlaylistDeleted] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState<SessionExpiredInfo | null>(null);
 
   useEffect(() => {
     // Connect to WebSocket server
@@ -90,6 +98,12 @@ export function useSocket(): UseSocketReturn {
     socket.on('playlist_unavailable', (data: { playlistId: string; message: string }) => {
       console.log('Playlist unavailable:', data.playlistId, data.message);
       setPlaylistDeleted(true); // Reusing same state variable
+      setIsAwaitingSync(false); // Stop any loading state
+    });
+
+    socket.on('session_expired', (data: { message: string; reason: string }) => {
+      console.log('Session expired:', data.message);
+      setSessionExpired(data);
       setIsAwaitingSync(false); // Stop any loading state
     });
 
@@ -156,6 +170,7 @@ export function useSocket(): UseSocketReturn {
     error,
     isAwaitingSync,
     playlistDeleted,
+    sessionExpired,
     joinSession,
     addToPlaylist,
     setPlaylist,

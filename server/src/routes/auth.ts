@@ -14,6 +14,7 @@ import {
   saveTokens,
   getHostAccessToken,
   getHostTokenFromRequest,
+  TokenExpiredError,
 } from '../services/tokens.js';
 import { PendingAuth } from '../types/index.js';
 import { sessions } from './sessions.js';
@@ -224,7 +225,15 @@ router.get('/credentials', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const auth = await getHostAccessToken(hostToken);
+  let auth;
+  try {
+    auth = await getHostAccessToken(hostToken);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Session expired' });

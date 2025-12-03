@@ -2,7 +2,7 @@
 import { Router, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import { Server } from 'socket.io';
-import { getHostAccessToken, hostTokens, getHostTokenFromRequest } from '../services/tokens.js';
+import { getHostAccessToken, hostTokens, getHostTokenFromRequest, TokenExpiredError } from '../services/tokens.js';
 import {
   searchTidal,
   createPlaylist,
@@ -25,6 +25,20 @@ export function setSocketIO(socketIO: Server) {
   io = socketIO;
 }
 
+// Helper to emit session_expired to all clients when OAuth expires
+function emitSessionExpired(hostToken: string) {
+  // Find any sessions using this hostToken
+  for (const [sessionId, session] of sessions.entries()) {
+    if (session.hostToken === hostToken) {
+      console.log(`OAuth expired for session ${sessionId}, notifying all clients`);
+      io.to(session.id).emit('session_expired', {
+        message: 'This session has expired because the Tidal authorization is no longer valid.',
+        reason: 'OAuth tokens are time-limited (typically 30-90 days). The host needs to log in again and create a new invite link.',
+      });
+    }
+  }
+}
+
 // Search Tidal catalog
 router.get('/search', async (req: Request, res: Response) => {
   const { query, sessionId } = req.query;
@@ -45,7 +59,19 @@ router.get('/search', async (req: Request, res: Response) => {
     }
   }
   
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ 
+        error: 'Session expired. The host needs to log in again.',
+        sessionExpired: true,
+      });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated. Please login with Tidal.', authRequired: true });
@@ -143,7 +169,17 @@ router.post('/playlists', async (req: Request, res: Response) => {
   const { name, description } = req.body;
   
   const hostToken = getHostTokenFromRequest(req);
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -185,7 +221,16 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
     }
   }
   
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -247,7 +292,17 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   const { trackIds, sessionId } = req.body;
   
   const hostToken = getHostTokenFromRequest(req);
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -296,7 +351,17 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
   const { playlistId } = req.params;
 
   const hostToken = getHostTokenFromRequest(req);
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated', authRequired: true });
@@ -331,7 +396,17 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   const { sessionId } = req.query;
 
   const hostToken = getHostTokenFromRequest(req);
-  const auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
   
   if (!auth) {
     return res.status(401).json({ error: 'Not authenticated' });

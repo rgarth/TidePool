@@ -3,6 +3,11 @@ import { MusicIcon } from './Icons';
 import { TrackItem } from './TrackItem';
 import type { Track } from '../types';
 
+interface SessionExpiredInfo {
+  message: string;
+  reason: string;
+}
+
 interface PlaylistViewProps {
   tracks: Track[];
   isLoading: boolean;
@@ -11,6 +16,7 @@ interface PlaylistViewProps {
   onDeleteTrack: (trackId: string) => void;
   isUnavailable?: boolean;
   onSelectNewPlaylist?: () => void;
+  sessionExpired?: SessionExpiredInfo | null;
 }
 
 export function PlaylistView({
@@ -21,8 +27,31 @@ export function PlaylistView({
   onDeleteTrack,
   isUnavailable,
   onSelectNewPlaylist,
+  sessionExpired,
 }: PlaylistViewProps) {
-  // Priority: Unavailable > Loading > Empty > Tracks
+  // Priority: SessionExpired > Unavailable > Loading > Empty > Tracks
+  if (sessionExpired) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon" style={{ color: '#ff6b6b' }}>🔐</div>
+        <h3 style={{ color: '#ff6b6b' }} className="mb-sm">Session Expired</h3>
+        <p className="text-secondary mb-md">{sessionExpired.message}</p>
+        <p className="text-muted text-sm mb-lg" style={{ maxWidth: '400px' }}>
+          {sessionExpired.reason}
+        </p>
+        {isHost ? (
+          <a href="/" className="btn btn-primary">
+            Start New Session
+          </a>
+        ) : (
+          <p className="text-secondary text-sm">
+            Ask the host to create a new session and share the invite link with you.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (isUnavailable) {
     return (
       <div className="empty-state">

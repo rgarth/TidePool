@@ -50,6 +50,14 @@ export const TIDAL_SCOPES = [
   'playlists.write',
 ].join(' ');
 
+// Custom error for expired/invalid refresh tokens
+export class TokenExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TokenExpiredError';
+  }
+}
+
 // Refresh access token
 export async function refreshAccessToken(refreshToken: string): Promise<any> {
   const credentials = Buffer.from(`${TIDAL_CLIENT_ID}:${TIDAL_CLIENT_SECRET}`).toString('base64');
@@ -67,6 +75,10 @@ export async function refreshAccessToken(refreshToken: string): Promise<any> {
   });
 
   if (!response.ok) {
+    // 400/401 typically means refresh token is invalid or expired
+    if (response.status === 400 || response.status === 401) {
+      throw new TokenExpiredError('OAuth session has expired. The host needs to re-authenticate.');
+    }
     throw new Error(`Token refresh failed: ${response.status}`);
   }
 
@@ -98,6 +110,11 @@ export async function getHostAccessToken(hostToken: string): Promise<{ token: st
     } catch (err) {
       console.error('Failed to refresh token:', err);
       hostTokens.delete(hostToken);
+      saveTokens(hostTokens);
+      // Re-throw TokenExpiredError so callers can handle it specially
+      if (err instanceof TokenExpiredError) {
+        throw err;
+      }
       return null;
     }
   }
