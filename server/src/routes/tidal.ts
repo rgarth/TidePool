@@ -13,7 +13,6 @@ import {
   parseTrackData,
   updatePlaylistDescription,
   buildContributorDescription,
-  updatePlaylistPrivacy,
 } from '../services/tidal.js';
 import { sessions } from './sessions.js';
 
@@ -392,56 +391,6 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
       return res.status(404).json({ error: 'Playlist not found or no longer accessible.' });
     }
     return res.status(500).json({ error: `Failed to load tracks: ${error.message}` });
-  }
-});
-
-// Update playlist privacy (accessType)
-router.patch('/playlists/:playlistId/privacy', async (req: Request, res: Response) => {
-  const { playlistId } = req.params;
-  const { isPublic, sessionId } = req.body;
-  
-  const hostToken = getHostTokenFromRequest(req);
-  
-  let auth;
-  try {
-    auth = hostToken ? await getHostAccessToken(hostToken) : null;
-  } catch (err) {
-    if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
-      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
-    }
-    throw err;
-  }
-  
-  if (!auth) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  if (typeof isPublic !== 'boolean') {
-    return res.status(400).json({ error: 'isPublic boolean is required' });
-  }
-  
-  try {
-    const success = await updatePlaylistPrivacy(auth.token, playlistId, isPublic, auth.countryCode);
-    
-    if (!success) {
-      return res.status(500).json({ error: 'Failed to update playlist privacy' });
-    }
-    
-    // Update session state and broadcast to all clients
-    if (sessionId && io) {
-      const session = sessions.get(sessionId.toUpperCase());
-      if (session) {
-        session.isPublic = isPublic;
-        io.to(session.id).emit('privacy_changed', { isPublic });
-        console.log(`Playlist ${playlistId} privacy changed to ${isPublic ? 'PUBLIC' : 'PRIVATE'}`);
-      }
-    }
-    
-    return res.json({ success: true, isPublic });
-  } catch (error: any) {
-    console.error('>>> Update privacy error:', error.message);
-    return res.status(500).json({ error: error.message });
   }
 });
 
