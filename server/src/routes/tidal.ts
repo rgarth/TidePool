@@ -399,7 +399,16 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   const { playlistId } = req.params;
   const { sessionId } = req.query;
 
-  const hostToken = getHostTokenFromRequest(req);
+  // Try to get host's token from request (header or cookie)
+  let hostToken = getHostTokenFromRequest(req);
+  
+  // If no token but sessionId provided, use session's hostToken (for guests)
+  if (!hostToken && sessionId && typeof sessionId === 'string') {
+    const session = sessions.get(sessionId.toUpperCase());
+    if (session?.hostToken) {
+      hostToken = session.hostToken;
+    }
+  }
   
   let auth;
   try {
