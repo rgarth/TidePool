@@ -116,3 +116,4 @@ export function initTheme(): void {
   const themeId = getStoredTheme();
   applyTheme(themeId);
 }
+
