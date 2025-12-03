@@ -13,6 +13,7 @@ import {
   parseTrackData,
   updatePlaylistDescription,
   buildContributorDescription,
+  updatePlaylistPrivacy,
 } from '../services/tidal.js';
 import { sessions } from './sessions.js';
 
@@ -193,14 +194,16 @@ router.post('/playlists', async (req: Request, res: Response) => {
     const result = await createPlaylist(auth.token, name, description || '');
     const playlist = result.data || result;
     const playlistId = playlist.id || playlist.uuid;
+    const privacy = playlist.attributes?.privacy || 'PUBLIC';
     
-    console.log(`Created playlist: ${playlistId}`);
+    console.log(`Created playlist: ${playlistId} (${privacy})`);
     
     res.json({
       id: playlistId,
       name: playlist.attributes?.name || name,
       tidalUrl: `https://tidal.com/playlist/${playlistId}`,
       listenUrl: `https://listen.tidal.com/playlist/${playlistId}`,
+      isPublic: privacy === 'PUBLIC',
     });
   } catch (error: any) {
     console.error('>>> Create playlist error:', error.message);
@@ -373,10 +376,12 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
       getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode),
     ]);
     
-    console.log(`Got ${tracks.length} tracks from playlist ${playlistId} (${playlistInfo?.name})`);
+    const isPublic = playlistInfo?.privacy === 'PUBLIC';
+    console.log(`Got ${tracks.length} tracks from playlist ${playlistId} (${playlistInfo?.name}, ${isPublic ? 'PUBLIC' : 'PRIVATE'})`);
     return res.json({ 
       tracks, 
       playlistName: playlistInfo?.name,
+      isPublic,
       authRequired: false,
     });
     
@@ -387,6 +392,56 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
       return res.status(404).json({ error: 'Playlist not found or no longer accessible.' });
     }
     return res.status(500).json({ error: `Failed to load tracks: ${error.message}` });
+  }
+});
+
+// Update playlist privacy
+router.patch('/playlists/:playlistId/privacy', async (req: Request, res: Response) => {
+  const { playlistId } = req.params;
+  const { isPublic, sessionId } = req.body;
+  
+  const hostToken = getHostTokenFromRequest(req);
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  if (typeof isPublic !== 'boolean') {
+    return res.status(400).json({ error: 'isPublic boolean is required' });
+  }
+  
+  try {
+    const success = await updatePlaylistPrivacy(auth.token, playlistId, isPublic);
+    
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to update playlist privacy' });
+    }
+    
+    // Update session state and broadcast to all clients
+    if (sessionId && io) {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        session.isPublic = isPublic;
+        io.to(session.id).emit('privacy_changed', { isPublic });
+        console.log(`Playlist ${playlistId} privacy changed to ${isPublic ? 'PUBLIC' : 'PRIVATE'}, broadcasted to session ${sessionId}`);
+      }
+    }
+    
+    return res.json({ success: true, isPublic });
+  } catch (error: any) {
+    console.error('>>> Update privacy error:', error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -419,24 +474,28 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
       getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode),
     ]);
     
+    const isPublic = playlistInfo?.privacy === 'PUBLIC';
+    
     if (sessionId && typeof sessionId === 'string' && io) {
       const session = sessions.get(sessionId.toUpperCase());
       if (session) {
         session.tracks = tracks;
+        session.isPublic = isPublic;
         // Update session name from Tidal
         if (playlistInfo?.name) {
           session.name = playlistInfo.name;
         }
-        // Broadcast tracks and name
+        // Broadcast tracks, name, and privacy
         io.to(session.id).emit('playlist_synced', { 
           tracks, 
           playlistName: playlistInfo?.name,
+          isPublic,
         });
-        console.log(`Refreshed & broadcasted ${tracks.length} tracks to session ${sessionId} (${playlistInfo?.name})`);
+        console.log(`Refreshed & broadcasted ${tracks.length} tracks to session ${sessionId} (${playlistInfo?.name}, ${isPublic ? 'PUBLIC' : 'PRIVATE'})`);
       }
     }
     
-    return res.json({ success: true, tracks, playlistName: playlistInfo?.name });
+    return res.json({ success: true, tracks, playlistName: playlistInfo?.name, isPublic });
   } catch (error: any) {
     console.error('>>> Refresh playlist FAILED:', error);
     // Handle deleted playlist

@@ -72,15 +72,23 @@ export function useSocket(): UseSocketReturn {
     });
 
     // Playlist synced from Tidal (source of truth) - loading complete
-    socket.on('playlist_synced', (data: { tracks: Track[]; playlistName?: string }) => {
-      console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks', data.playlistName ? `(${data.playlistName})` : '');
+    socket.on('playlist_synced', (data: { tracks: Track[]; playlistName?: string; isPublic?: boolean }) => {
+      console.log('Playlist synced from Tidal:', data.tracks.length, 'tracks', data.playlistName ? `(${data.playlistName})` : '', data.isPublic ? 'PUBLIC' : 'PRIVATE');
       setIsAwaitingSync(false); // Loading complete
       setSessionState((prev) => prev ? { 
         ...prev, 
         tracks: data.tracks,
         // Update name if provided (from refresh)
         ...(data.playlistName ? { name: data.playlistName } : {}),
+        // Update privacy if provided
+        ...(typeof data.isPublic === 'boolean' ? { isPublic: data.isPublic } : {}),
       } : null);
+    });
+
+    // Privacy changed by host
+    socket.on('privacy_changed', (data: { isPublic: boolean }) => {
+      console.log('Playlist privacy changed:', data.isPublic ? 'PUBLIC' : 'PRIVATE');
+      setSessionState((prev) => prev ? { ...prev, isPublic: data.isPublic } : null);
     });
 
     socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string; sessionName?: string }) => {

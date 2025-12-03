@@ -20,6 +20,7 @@ export interface Session {
   // Playlist info (created in Tidal)
   tidalPlaylistId?: string;
   tidalPlaylistUrl?: string;
+  isPublic?: boolean; // Whether playlist is public on Tidal (allows Open in Tidal for guests)
   // Track list (mirrored from playlist for display)
   tracks: Track[];
   createdAt: Date;

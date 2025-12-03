@@ -51,6 +51,7 @@ export function SessionPage() {
   const playlist = usePlaylistActions({
     sessionId,
     playlistId: sessionState?.tidalPlaylistId,
+    isPublic: sessionState?.isPublic,
     onPlaylistSet: setPlaylist,
     onStartLoading: startLoading,
     onClearSearch: clearSearch,
@@ -190,7 +191,10 @@ export function SessionPage() {
       <BottomBar
         isHost={sessionState.isHost}
         hasPlaylist={!!sessionState.tidalPlaylistId}
+        isPublic={sessionState.isPublic ?? true}
+        isTogglingPrivacy={playlist.isTogglingPrivacy}
         onOpenInTidal={share.openInTidal}
+        onTogglePrivacy={playlist.togglePrivacy}
       />
 
       <ShareModal

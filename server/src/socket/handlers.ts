@@ -51,6 +51,7 @@ export function setupSocketHandlers(io: Server): void {
         tracks: session.tracks,
         tidalPlaylistId: session.tidalPlaylistId,
         tidalPlaylistUrl: session.tidalPlaylistUrl,
+        isPublic: session.isPublic ?? true, // Default to public
         isHost,
         participants: Array.from(session.participants.values()),
       });

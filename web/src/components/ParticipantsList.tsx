@@ -19,3 +19,4 @@ export function ParticipantsList({ participants }: ParticipantsListProps) {
     </div>
   );
 }
+

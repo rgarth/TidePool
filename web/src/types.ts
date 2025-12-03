@@ -15,6 +15,7 @@ export interface SessionState {
   tracks: Track[];
   tidalPlaylistId?: string;
   tidalPlaylistUrl?: string;
+  isPublic?: boolean;
   isHost: boolean;
   participants: string[];
 }

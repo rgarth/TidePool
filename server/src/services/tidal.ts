@@ -135,6 +135,40 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
   return true;
 }
 
+// Update playlist privacy (PUBLIC or PRIVATE)
+export async function updatePlaylistPrivacy(accessToken: string, playlistId: string, isPublic: boolean): Promise<boolean> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
+  const privacy = isPublic ? 'PUBLIC' : 'PRIVATE';
+  
+  console.log(`>>> Updating playlist ${playlistId} privacy to ${privacy}`);
+  
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'playlists',
+        id: playlistId,
+        attributes: {
+          privacy,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Update playlist privacy error (${response.status}):`, error.substring(0, 500));
+    return false;
+  }
+  
+  return true;
+}
+
 // Build playlist description with contributors (max 250 chars)
 // Excludes "Host" and the host's Tidal username (they own the playlist)
 export function buildContributorDescription(participants: string[], hostName?: string): string {
@@ -411,7 +445,7 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
 }
 
 // Get playlist info
-export async function getPlaylistInfo(accessToken: string, playlistId: string): Promise<{ name: string; description?: string } | null> {
+export async function getPlaylistInfo(accessToken: string, playlistId: string): Promise<{ name: string; description?: string; privacy?: string } | null> {
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
   
   const response = await fetch(url, {
@@ -430,6 +464,7 @@ export async function getPlaylistInfo(accessToken: string, playlistId: string): 
   return {
     name: data.data?.attributes?.name || 'Untitled Playlist',
     description: data.data?.attributes?.description,
+    privacy: data.data?.attributes?.privacy,
   };
 }
 
