@@ -90,7 +90,7 @@ export async function createPlaylist(accessToken: string, name: string, descript
         attributes: {
           name,
           description,
-          privacy: 'PUBLIC',
+          accessType: 'PUBLIC',
         },
       },
     }),
@@ -138,20 +138,20 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
 // Update playlist privacy (PUBLIC or PRIVATE)
 export async function updatePlaylistPrivacy(accessToken: string, playlistId: string, isPublic: boolean): Promise<boolean> {
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
-  const privacy = isPublic ? 'PUBLIC' : 'PRIVATE';
+  // Tidal uses 'accessType' not 'privacy'
+  const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
   
-  console.log(`>>> Updating playlist ${playlistId} privacy to ${privacy}`);
+  console.log(`>>> Updating playlist ${playlistId} accessType to ${accessType}`);
   
   const body = {
     data: {
       type: 'playlists',
       id: playlistId,
       attributes: {
-        privacy,
+        accessType,
       },
     },
   };
-  console.log('>>> PATCH body:', JSON.stringify(body));
   
   const response = await fetch(url, {
     method: 'PATCH',
@@ -163,15 +163,13 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
     body: JSON.stringify(body),
   });
 
-  console.log(`>>> PATCH response status: ${response.status}`);
-  const responseText = await response.text();
-  console.log(`>>> PATCH response body: ${responseText.substring(0, 500)}`);
-
   if (!response.ok) {
-    console.error(`>>> Update playlist privacy error (${response.status}):`, responseText.substring(0, 500));
+    const error = await response.text();
+    console.error(`>>> Update playlist accessType error (${response.status}):`, error.substring(0, 500));
     return false;
   }
   
+  console.log(`>>> Playlist ${playlistId} accessType updated to ${accessType}`);
   return true;
 }
 
@@ -467,11 +465,13 @@ export async function getPlaylistInfo(accessToken: string, playlistId: string): 
   }
   
   const data = await response.json();
-  console.log('>>> PLAYLIST INFO - Raw privacy value:', JSON.stringify(data.data?.attributes?.privacy), 'All attributes:', JSON.stringify(data.data?.attributes));
+  // Tidal uses 'accessType' not 'privacy' for the visibility attribute
+  const accessType = data.data?.attributes?.accessType;
+  console.log(`>>> Playlist "${data.data?.attributes?.name}" accessType: ${accessType}`);
   return {
     name: data.data?.attributes?.name || 'Untitled Playlist',
     description: data.data?.attributes?.description,
-    privacy: data.data?.attributes?.privacy,
+    privacy: accessType, // Map accessType to our privacy field
   };
 }
 
