@@ -105,6 +105,81 @@ export async function createPlaylist(accessToken: string, name: string, descript
   return response.json();
 }
 
+// Update playlist description
+export async function updatePlaylistDescription(accessToken: string, playlistId: string, description: string): Promise<boolean> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
+  
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'playlists',
+        id: playlistId,
+        attributes: {
+          description,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    console.error(`>>> Update playlist description error (${response.status})`);
+    return false;
+  }
+  
+  return true;
+}
+
+// Build playlist description with contributors (max 250 chars)
+// Excludes "Host" and the host's Tidal username (they own the playlist)
+export function buildContributorDescription(participants: string[], hostName?: string): string {
+  const MAX_LENGTH = 250;
+  const PREFIX = 'Created with TidePool';
+  
+  // Get unique, non-empty names, excluding "Host" and the host's username
+  const seen = new Set<string>();
+  const hostLower = hostName?.toLowerCase().trim();
+  
+  const uniqueNames = participants.filter(name => {
+    const lower = name.toLowerCase().trim();
+    // Skip empty, "host", the host's username, and duplicates
+    if (!lower || lower === 'host' || lower === hostLower || seen.has(lower)) {
+      return false;
+    }
+    seen.add(lower);
+    return true;
+  });
+  
+  if (uniqueNames.length === 0) {
+    return PREFIX;
+  }
+  
+  // Try to fit all names
+  let description = `${PREFIX} by ${uniqueNames.join(', ')}`;
+  
+  if (description.length <= MAX_LENGTH) {
+    return description;
+  }
+  
+  // Too long - progressively remove names and add "and others"
+  for (let i = uniqueNames.length - 1; i >= 1; i--) {
+    const included = uniqueNames.slice(0, i);
+    description = `${PREFIX} by ${included.join(', ')} and others`;
+    
+    if (description.length <= MAX_LENGTH) {
+      return description;
+    }
+  }
+  
+  // Fallback
+  return `${PREFIX} by ${uniqueNames[0]} and others`;
+}
+
 // Add tracks to a playlist
 export async function addTracksToPlaylist(accessToken: string, playlistId: string, trackIds: string[]): Promise<any> {
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;

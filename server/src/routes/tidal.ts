@@ -11,6 +11,8 @@ import {
   getPlaylistWithFullTracks,
   getPlaylistInfo,
   parseTrackData,
+  updatePlaylistDescription,
+  buildContributorDescription,
 } from '../services/tidal.js';
 import { sessions } from './sessions.js';
 
@@ -205,6 +207,17 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
         session.tracks = tracks;
         io.to(session.id).emit('playlist_synced', { tracks });
         console.log(`Broadcasted ${tracks.length} tracks to session ${sessionId}`);
+        
+        // Update playlist description with contributors (non-blocking)
+        const participants = Array.from(session.participants.values());
+        if (participants.length > 0) {
+          const description = buildContributorDescription(participants, session.hostName);
+          updatePlaylistDescription(auth.token, playlistId, description)
+            .then(success => {
+              if (success) console.log(`Updated playlist description: ${description}`);
+            })
+            .catch(() => {}); // Ignore errors, this is optional
+        }
       }
     }
     
