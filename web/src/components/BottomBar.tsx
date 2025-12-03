@@ -45,7 +45,7 @@ export function BottomBar({
           {!isHost && isPublic && (
             <p className="bottom-bar-hint">
               <InfoIcon size={14} />
-              Access this playlist using the public URL from the host. Adding to your library creates a copy that won't sync.
+              Access this playlist using the public URL from the host. Adding to your library creates a copy that won't reflect changes made here.
             </p>
           )}
         </div>
