@@ -137,11 +137,71 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
 
 // Update playlist privacy (PUBLIC or PRIVATE)
 export async function updatePlaylistPrivacy(accessToken: string, playlistId: string, isPublic: boolean, countryCode: string): Promise<boolean> {
-  // Include countryCode as query param per docs
   const url = `https://openapi.tidal.com/v2/playlists/${playlistId}?countryCode=${countryCode}`;
-  const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
   
-  // Match exact format from Tidal API docs
+  // Test 1: Try PATCH with just name (no accessType) - does PATCH work at all?
+  console.log('>>> TEST 1: PATCH with name only (no accessType)');
+  const test1Body = {
+    data: {
+      attributes: {
+        name: 'Road Trip'  // Same name, just testing if PATCH works
+      },
+      id: playlistId,
+      type: 'playlists'
+    }
+  };
+  console.log(`>>> Body: ${JSON.stringify(test1Body)}`);
+  
+  const test1Response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify(test1Body),
+  });
+  console.log(`>>> TEST 1 result: ${test1Response.status}`);
+  if (!test1Response.ok) {
+    const err = await test1Response.text();
+    console.log(`>>> TEST 1 error: ${err}`);
+  } else {
+    console.log('>>> TEST 1 SUCCESS - PATCH works for name');
+  }
+
+  // Test 2: Try uppercase PUBLIC (same as current value)
+  console.log('>>> TEST 2: PATCH with accessType: PUBLIC (same value)');
+  const test2Body = {
+    data: {
+      attributes: {
+        accessType: 'PUBLIC'
+      },
+      id: playlistId,
+      type: 'playlists'
+    }
+  };
+  console.log(`>>> Body: ${JSON.stringify(test2Body)}`);
+  
+  const test2Response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify(test2Body),
+  });
+  console.log(`>>> TEST 2 result: ${test2Response.status}`);
+  if (!test2Response.ok) {
+    const err = await test2Response.text();
+    console.log(`>>> TEST 2 error: ${err}`);
+  } else {
+    console.log('>>> TEST 2 SUCCESS - accessType PUBLIC accepted');
+  }
+
+  // Test 3: Try the actual toggle
+  const accessType = isPublic ? 'PUBLIC' : 'PRIVATE';
+  console.log(`>>> TEST 3: PATCH with accessType: ${accessType} (requested value)`);
   const body = {
     data: {
       attributes: {
@@ -151,8 +211,6 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
       type: 'playlists'
     }
   };
-  
-  console.log(`>>> PATCH ${url}`);
   console.log(`>>> Body: ${JSON.stringify(body)}`);
   
   const response = await fetch(url, {
@@ -167,11 +225,11 @@ export async function updatePlaylistPrivacy(accessToken: string, playlistId: str
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`>>> PATCH error (${response.status}):`, error);
+    console.error(`>>> TEST 3 error (${response.status}):`, error);
     return false;
   }
   
-  console.log(`>>> Playlist ${playlistId} accessType updated to ${accessType}`);
+  console.log(`>>> TEST 3 SUCCESS - accessType updated to ${accessType}`);
   return true;
 }
 
