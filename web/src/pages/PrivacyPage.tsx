@@ -74,7 +74,7 @@ export function PrivacyPage() {
 
             <h3 className="text-accent mb-sm">Contact</h3>
             <p className="text-secondary">
-              Questions? Reach out at <a href="mailto:privacy@tidepool.art">privacy@tidepool.art</a>
+              Questions? Reach out at <a href="mailto:support@tidepool.art">support@tidepool.art</a>
             </p>
           </div>
         </motion.div>
