@@ -33,7 +33,7 @@ export function HomePage() {
               TidePool
             </h1>
             <p className="text-secondary text-lg mt-sm">
-              Collaborative playlists for road trips
+              Collaborative playlists for Tidal
             </p>
           </div>
         </motion.div>
