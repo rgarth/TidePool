@@ -14,11 +14,11 @@
   --bg-card: rgba(30, 61, 80, 0.4);
   --bg-overlay: rgba(12, 25, 34, 0.95);
   
-  /* Accent colors */
-  --accent-cyan: #3ee0f5;
-  --accent-teal: #14c8de;
-  --accent-light: #b8f5fc;
-  --accent-deep: #0891b2;
+  /* Accent colors (gradient: bright → mid → deep) */
+  --accent-cyan: #5eead4;
+  --accent-teal: #14b8a6;
+  --accent-light: #99f6e4;
+  --accent-deep: #0d9488;
   
   /* Text */
   --text-primary: #f5fffe;

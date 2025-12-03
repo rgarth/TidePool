@@ -13,66 +13,66 @@ export const THEME_COLORS: ThemeColor[] = [
   {
     id: 'cyan',
     name: 'Cyan',
-    accent: '#3ee0f5',
-    secondary: '#14c8de',
-    deep: '#0891b2',
-    glow: 'rgba(62, 224, 245, 0.5)',
+    accent: '#5eead4',    // Bright teal
+    secondary: '#14b8a6', // Teal
+    deep: '#0d9488',      // Dark teal
+    glow: 'rgba(94, 234, 212, 0.5)',
   },
   {
     id: 'gold',
     name: 'Gold',
-    accent: '#f5d03e',
-    secondary: '#deb514',
-    deep: '#b8860b',
-    glow: 'rgba(245, 208, 62, 0.5)',
+    accent: '#fcd34d',    // Bright gold
+    secondary: '#f59e0b', // Amber
+    deep: '#d97706',      // Dark amber
+    glow: 'rgba(252, 211, 77, 0.5)',
   },
   {
     id: 'orange',
     name: 'Orange',
-    accent: '#f5943e',
-    secondary: '#de7014',
-    deep: '#b85c00',
-    glow: 'rgba(245, 148, 62, 0.5)',
+    accent: '#fb923c',    // Bright orange
+    secondary: '#ea580c', // Deep orange
+    deep: '#c2410c',      // Dark orange
+    glow: 'rgba(251, 146, 60, 0.5)',
   },
   {
     id: 'coral',
     name: 'Coral',
-    accent: '#f55e5e',
-    secondary: '#de3a3a',
-    deep: '#b22222',
-    glow: 'rgba(245, 94, 94, 0.5)',
+    accent: '#f87171',    // Light coral
+    secondary: '#dc2626', // Red
+    deep: '#b91c1c',      // Dark red
+    glow: 'rgba(248, 113, 113, 0.5)',
   },
   {
     id: 'pink',
     name: 'Hot Pink',
-    accent: '#f53ee0',
-    secondary: '#de14c8',
-    deep: '#a0108f',
-    glow: 'rgba(245, 62, 224, 0.5)',
+    accent: '#f472b6',    // Pink
+    secondary: '#db2777', // Deep pink
+    deep: '#be185d',      // Dark pink
+    glow: 'rgba(244, 114, 182, 0.5)',
   },
   {
     id: 'violet',
     name: 'Violet',
-    accent: '#a855f7',
-    secondary: '#8b3fde',
-    deep: '#6b21a8',
-    glow: 'rgba(168, 85, 247, 0.5)',
+    accent: '#c084fc',    // Light violet
+    secondary: '#9333ea', // Purple
+    deep: '#7c3aed',      // Dark purple
+    glow: 'rgba(192, 132, 252, 0.5)',
   },
   {
     id: 'blue',
     name: 'Electric Blue',
-    accent: '#3e8ff5',
-    secondary: '#1470de',
-    deep: '#0050b3',
-    glow: 'rgba(62, 143, 245, 0.5)',
+    accent: '#60a5fa',    // Light blue
+    secondary: '#2563eb', // Blue
+    deep: '#1d4ed8',      // Dark blue
+    glow: 'rgba(96, 165, 250, 0.5)',
   },
   {
     id: 'green',
     name: 'Neon Green',
-    accent: '#3ef578',
-    secondary: '#14de50',
-    deep: '#0d9640',
-    glow: 'rgba(62, 245, 120, 0.5)',
+    accent: '#4ade80',    // Light green
+    secondary: '#16a34a', // Green
+    deep: '#15803d',      // Dark green
+    glow: 'rgba(74, 222, 128, 0.5)',
   },
 ];
 
