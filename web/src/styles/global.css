@@ -533,10 +533,23 @@ a:hover {
   margin: var(--space-xs) 0;
 }
 
-/* Theme Picker (in dropdown) */
+/* Dropdown Submenu */
+.dropdown-submenu {
+  position: absolute;
+  right: 100%;
+  top: 0;
+  margin-right: var(--space-xs);
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+  overflow: hidden;
+}
+
+/* Theme Picker (in submenu) */
 .theme-picker {
   padding: var(--space-md);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .theme-picker-label {

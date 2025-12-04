@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { DropdownMenu } from './DropdownMenu';
 import { ThemePicker } from './ThemePicker';
-import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon } from './Icons';
+import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon, PaletteIcon } from './Icons';
 
 interface SessionHeaderProps {
   sessionName: string;
@@ -70,6 +70,13 @@ export function SessionHeader({
     });
   }
   
+  // Theme submenu
+  menuItems.push({
+    label: 'Theme',
+    icon: <PaletteIcon size={18} />,
+    submenu: <ThemePicker />,
+  });
+  
   if (isHost && onLogout) {
     menuItems.push({
       label: 'Disconnect Tidal',
@@ -98,7 +105,7 @@ export function SessionHeader({
           <button onClick={onShare} className="btn btn-secondary btn-sm">
             Invite
           </button>
-          <DropdownMenu items={menuItems} footer={<ThemePicker />} />
+          <DropdownMenu items={menuItems} />
         </div>
       </div>
 

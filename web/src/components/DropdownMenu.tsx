@@ -5,19 +5,20 @@ import { MenuIcon } from './Icons';
 interface MenuItem {
   label: string;
   icon?: React.ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
   danger?: boolean;
   disabled?: boolean;
+  submenu?: React.ReactNode;
 }
 
 interface DropdownMenuProps {
   items: MenuItem[];
   trigger?: React.ReactNode;
-  footer?: React.ReactNode;
 }
 
-export function DropdownMenu({ items, trigger, footer }: DropdownMenuProps) {
+export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -25,6 +26,7 @@ export function DropdownMenu({ items, trigger, footer }: DropdownMenuProps) {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setOpenSubmenu(null);
       }
     }
     
@@ -39,6 +41,7 @@ export function DropdownMenu({ items, trigger, footer }: DropdownMenuProps) {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false);
+        setOpenSubmenu(null);
       }
     }
     
@@ -69,22 +72,47 @@ export function DropdownMenu({ items, trigger, footer }: DropdownMenuProps) {
             transition={{ duration: 0.15 }}
           >
             {items.map((item, index) => (
-              <button
+              <div
                 key={index}
-                className={`dropdown-item ${item.danger ? 'dropdown-item-danger' : ''}`}
-                onClick={() => {
-                  if (!item.disabled) {
-                    item.onClick();
-                    setIsOpen(false);
-                  }
-                }}
-                disabled={item.disabled}
+                className="dropdown-item-wrapper"
+                onMouseEnter={() => item.submenu && setOpenSubmenu(index)}
+                onMouseLeave={() => item.submenu && setOpenSubmenu(null)}
+                style={{ position: 'relative' }}
               >
-                {item.icon}
-                {item.label}
-              </button>
+                <button
+                  className={`dropdown-item ${item.danger ? 'dropdown-item-danger' : ''}`}
+                  onClick={() => {
+                    if (!item.disabled && item.onClick) {
+                      item.onClick();
+                      setIsOpen(false);
+                    }
+                  }}
+                  disabled={item.disabled}
+                  style={{ width: '100%', justifyContent: 'space-between' }}
+                >
+                  <span className="flex items-center gap-sm">
+                    {item.icon}
+                    {item.label}
+                  </span>
+                  {item.submenu && <span style={{ opacity: 0.5 }}>›</span>}
+                </button>
+                
+                {/* Submenu */}
+                <AnimatePresence>
+                  {item.submenu && openSubmenu === index && (
+                    <motion.div
+                      className="dropdown-submenu"
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ duration: 0.1 }}
+                    >
+                      {item.submenu}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             ))}
-            {footer}
           </motion.div>
         )}
       </AnimatePresence>
