@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { BackArrowIcon, TidalLogo, PlayCircleIcon } from '../components/Icons';
@@ -7,14 +7,21 @@ import { API_URL } from '../config';
 
 export function HostPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated, isChecking } = useAuth();
+  
+  // Hidden feature: ?resume=CODE allows reusing a session code after server restart
+  const resumeCode = searchParams.get('resume');
 
   const handleLoginAndCreate = async (forceReauth = false) => {
     try {
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostName: '' }),
+        body: JSON.stringify({ 
+          hostName: '',
+          resumeCode: resumeCode || undefined,
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to create session');

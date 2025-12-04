@@ -13,6 +13,7 @@ import { PlaylistView } from '../components/PlaylistView';
 import { ParticipantsList } from '../components/ParticipantsList';
 import { ShareModal } from '../components/ShareModal';
 import { LogoutModal } from '../components/LogoutModal';
+import { EditPlaylistModal } from '../components/EditPlaylistModal';
 import { BottomBar } from '../components/BottomBar';
 import { PageSpinner } from '../components/Spinner';
 import { setHostToken, clearHostToken, apiFetch } from '../config';
@@ -44,6 +45,9 @@ export function SessionPage() {
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [userDescription, setUserDescription] = useState('');
   
   // Auth handling
   const authSuccess = searchParams.get('auth') === 'success';
@@ -79,6 +83,50 @@ export function SessionPage() {
       navigate('/');
     }
   };
+
+  // Handle playlist edit (name and description)
+  const handleEditPlaylist = async (name: string, description: string) => {
+    if (!sessionState?.tidalPlaylistId) return;
+    
+    setIsSavingEdit(true);
+    try {
+      const response = await apiFetch(`/api/tidal/playlists/${sessionState.tidalPlaylistId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          userDescription: description,
+          sessionId,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update playlist');
+      }
+      
+      // Store description locally for future edits
+      setUserDescription(description);
+      if (sessionId) {
+        sessionStorage.setItem(`tidepool_desc_${sessionId}`, description);
+      }
+      
+      setShowEditModal(false);
+    } catch (err) {
+      console.error('Failed to update playlist:', err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Load user description from sessionStorage
+  useEffect(() => {
+    if (sessionId) {
+      const saved = sessionStorage.getItem(`tidepool_desc_${sessionId}`);
+      if (saved) {
+        setUserDescription(saved);
+      }
+    }
+  }, [sessionId]);
 
   // Extract and store token from URL (for cross-origin auth)
   useEffect(() => {
@@ -166,6 +214,7 @@ export function SessionPage() {
         onShare={share.openShareModal}
         onExit={() => navigate('/')}
         onLogout={() => setShowLogoutModal(true)}
+        onEdit={() => setShowEditModal(true)}
         onSearchChange={setSearchQuery}
         onClearSearch={clearSearch}
         onTabChange={setActiveTab}
@@ -228,6 +277,15 @@ export function SessionPage() {
         isLoggingOut={isLoggingOut}
         onClose={() => setShowLogoutModal(false)}
         onConfirm={handleLogout}
+      />
+
+      <EditPlaylistModal
+        isOpen={showEditModal}
+        currentName={sessionState.name}
+        currentDescription={userDescription}
+        isSaving={isSavingEdit}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleEditPlaylist}
       />
     </div>
   );

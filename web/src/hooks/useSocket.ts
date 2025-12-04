@@ -91,6 +91,12 @@ export function useSocket(): UseSocketReturn {
       setSessionState((prev) => prev ? { ...prev, isPublic: data.isPublic } : null);
     });
 
+    // Playlist renamed by host
+    socket.on('playlist_renamed', (data: { name: string }) => {
+      console.log('Playlist renamed:', data.name);
+      setSessionState((prev) => prev ? { ...prev, name: data.name } : null);
+    });
+
     socket.on('playlist_linked', (data: { tidalPlaylistId: string; tidalPlaylistUrl: string; sessionName?: string }) => {
       console.log('Playlist linked:', data.tidalPlaylistId, data.sessionName);
       setPlaylistDeleted(false); // Clear deleted flag when linking new playlist

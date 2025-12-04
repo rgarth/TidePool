@@ -12,6 +12,7 @@ import {
   getPlaylistInfo,
   parseTrackData,
   updatePlaylistDescription,
+  updatePlaylist,
   buildContributorDescription,
 } from '../services/tidal.js';
 import { sessions } from './sessions.js';
@@ -210,6 +211,69 @@ router.post('/playlists', async (req: Request, res: Response) => {
   }
 });
 
+// Update playlist name and/or description
+router.patch('/playlists/:playlistId', async (req: Request, res: Response) => {
+  const { playlistId } = req.params;
+  const { name, userDescription, sessionId } = req.body;
+  
+  const hostToken = getHostTokenFromRequest(req);
+  
+  let auth;
+  try {
+    auth = hostToken ? await getHostAccessToken(hostToken) : null;
+  } catch (err) {
+    if (err instanceof TokenExpiredError && hostToken) {
+      emitSessionExpired(hostToken);
+      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
+    }
+    throw err;
+  }
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    // Build full description with user's text + contributor credits
+    let fullDescription: string | undefined;
+    
+    if (sessionId) {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        const participants = Array.from(session.participants.values());
+        fullDescription = buildContributorDescription(participants, session.hostName, userDescription);
+        
+        // Store user description in session for future updates
+        session.userDescription = userDescription || '';
+      }
+    }
+    
+    // Update the playlist
+    const success = await updatePlaylist(auth.token, playlistId, {
+      name,
+      description: fullDescription,
+    });
+    
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to update playlist' });
+    }
+    
+    // Broadcast name change to all session participants
+    if (sessionId && io && name) {
+      const session = sessions.get(sessionId.toUpperCase());
+      if (session) {
+        session.name = name;
+        io.to(session.id).emit('playlist_renamed', { name });
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('>>> Update playlist error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Add tracks to a playlist
 router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
   const { playlistId } = req.params;
@@ -258,7 +322,7 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
         // Update playlist description with contributors (non-blocking)
         const participants = Array.from(session.participants.values());
         if (participants.length > 0) {
-          const description = buildContributorDescription(participants, session.hostName);
+          const description = buildContributorDescription(participants, session.hostName, session.userDescription);
           updatePlaylistDescription(auth.token, playlistId, description)
             .then(success => {
               if (success) console.log(`Updated playlist description: ${description}`);

@@ -39,8 +39,23 @@ function generateRandomSessionName(): string {
 
 // Create a new session
 router.post('/', (req: Request, res: Response) => {
-  const { hostName } = req.body;
-  const sessionId = generateSessionCode();
+  const { hostName, resumeCode } = req.body;
+  
+  // Allow resuming with a specific code (hidden feature for server restarts)
+  let sessionId: string;
+  if (resumeCode && typeof resumeCode === 'string') {
+    const cleanCode = resumeCode.toUpperCase().trim();
+    // Validate format (6 alphanumeric chars) and check availability
+    if (/^[A-Z0-9]{6}$/.test(cleanCode) && !sessions.has(cleanCode)) {
+      sessionId = cleanCode;
+      console.log(`Resuming session with code: ${sessionId}`);
+    } else {
+      sessionId = generateSessionCode();
+      console.log(`Requested code ${cleanCode} unavailable, generated: ${sessionId}`);
+    }
+  } else {
+    sessionId = generateSessionCode();
+  }
   
   const sessionName = hostName?.trim() || generateRandomSessionName();
   

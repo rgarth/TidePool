@@ -135,10 +135,70 @@ export async function updatePlaylistDescription(accessToken: string, playlistId:
   return true;
 }
 
-// Build playlist description with contributors (max 250 chars)
-// Excludes "Host" and the host's Tidal username (they own the playlist)
-export function buildContributorDescription(participants: string[], hostName?: string): string {
-  const MAX_LENGTH = 250;
+// Update playlist name and/or description
+export async function updatePlaylist(
+  accessToken: string, 
+  playlistId: string, 
+  updates: { name?: string; description?: string }
+): Promise<boolean> {
+  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}`;
+  
+  const attributes: Record<string, string> = {};
+  if (updates.name) attributes.name = updates.name;
+  if (updates.description !== undefined) attributes.description = updates.description;
+  
+  if (Object.keys(attributes).length === 0) {
+    return true; // Nothing to update
+  }
+  
+  console.log(`>>> Updating playlist ${playlistId}:`, Object.keys(attributes));
+  
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/vnd.api+json',
+      'Accept': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'playlists',
+        id: playlistId,
+        attributes,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`>>> Update playlist error (${response.status}):`, error.substring(0, 500));
+    return false;
+  }
+  
+  return true;
+}
+
+// Build playlist description with optional user description + contributors
+// Total Tidal limit: 500 chars
+// User description: max 300 chars
+// By line gets remaining space (min 200 chars)
+export function buildContributorDescription(
+  participants: string[], 
+  hostName?: string,
+  userDescription?: string
+): string {
+  const TOTAL_LIMIT = 500;
+  const MAX_USER_DESC = 300;
+  const MIN_BYLINE = 200;
+  
+  // Sanitize and limit user description
+  const cleanUserDesc = (userDescription || '').trim().slice(0, MAX_USER_DESC);
+  
+  // Calculate available space for by-line
+  const byLineLimit = cleanUserDesc 
+    ? Math.max(MIN_BYLINE, TOTAL_LIMIT - cleanUserDesc.length - 2) // -2 for "\n\n" separator
+    : TOTAL_LIMIT;
+  
   const PREFIX = 'Created with TidePool';
   
   // Get unique, non-empty names, excluding "Host" and the host's username
@@ -155,29 +215,37 @@ export function buildContributorDescription(participants: string[], hostName?: s
     return true;
   });
   
-  if (uniqueNames.length === 0) {
-    return PREFIX;
-  }
+  // Build the by-line
+  let byLine = PREFIX;
   
-  // Try to fit all names
-  let description = `${PREFIX} by ${uniqueNames.join(', ')}`;
-  
-  if (description.length <= MAX_LENGTH) {
-    return description;
-  }
-  
-  // Too long - progressively remove names and add "and others"
-  for (let i = uniqueNames.length - 1; i >= 1; i--) {
-    const included = uniqueNames.slice(0, i);
-    description = `${PREFIX} by ${included.join(', ')} and others`;
+  if (uniqueNames.length > 0) {
+    // Try to fit all names
+    byLine = `${PREFIX} by ${uniqueNames.join(', ')}`;
     
-    if (description.length <= MAX_LENGTH) {
-      return description;
+    if (byLine.length > byLineLimit) {
+      // Too long - progressively remove names and add "and others"
+      for (let i = uniqueNames.length - 1; i >= 1; i--) {
+        const included = uniqueNames.slice(0, i);
+        byLine = `${PREFIX} by ${included.join(', ')} and others`;
+        
+        if (byLine.length <= byLineLimit) {
+          break;
+        }
+      }
+      
+      // Final fallback
+      if (byLine.length > byLineLimit) {
+        byLine = `${PREFIX} by ${uniqueNames[0]} and others`;
+      }
     }
   }
   
-  // Fallback
-  return `${PREFIX} by ${uniqueNames[0]} and others`;
+  // Combine user description with by-line
+  if (cleanUserDesc) {
+    return `${cleanUserDesc}\n\n${byLine}`;
+  }
+  
+  return byLine;
 }
 
 // Add tracks to a playlist

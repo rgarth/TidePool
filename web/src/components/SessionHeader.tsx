@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { DropdownMenu } from './DropdownMenu';
 import { ThemePicker } from './ThemePicker';
-import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon, PaletteIcon } from './Icons';
+import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon, PaletteIcon, EditIcon } from './Icons';
 
 interface SessionHeaderProps {
   sessionName: string;
@@ -18,6 +18,7 @@ interface SessionHeaderProps {
   onShare: () => void;
   onExit: () => void;
   onLogout?: () => void;
+  onEdit?: () => void;
   onSearchChange: (query: string) => void;
   onClearSearch: () => void;
   onTabChange: (tab: 'playlist' | 'participants') => void;
@@ -38,6 +39,7 @@ export function SessionHeader({
   onShare,
   onExit,
   onLogout,
+  onEdit,
   onSearchChange,
   onClearSearch,
   onTabChange,
@@ -94,10 +96,20 @@ export function SessionHeader({
 
   return (
     <header className="header container">
-      {/* Top row: Name + HOST badge, actions */}
+      {/* Top row: Name + edit + HOST badge, actions */}
       <div className="header-row">
         <div className="header-info flex items-center gap-sm">
           <h1 className="header-title truncate">{sessionName}</h1>
+          {isHost && hasPlaylist && onEdit && (
+            <button
+              className="btn btn-ghost"
+              onClick={onEdit}
+              title="Edit playlist"
+              style={{ padding: '4px', opacity: 0.6 }}
+            >
+              <EditIcon size={16} />
+            </button>
+          )}
           {isHost && <span className="badge badge-accent flex-shrink-0">HOST</span>}
         </div>
         
