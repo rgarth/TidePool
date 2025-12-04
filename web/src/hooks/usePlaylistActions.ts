@@ -66,14 +66,16 @@ export function usePlaylistActions({
   
   // Last used playlist (from localStorage)
   const [lastPlaylistId, setLastPlaylistId] = useState<string | null>(null);
+  const [lastPlaylistName, setLastPlaylistName] = useState<string | null>(null);
   
-  // Load last playlist ID from localStorage
+  // Load last playlist from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('tidepool_last_playlist');
     if (saved) {
       try {
         const data = JSON.parse(saved);
         setLastPlaylistId(data.id);
+        setLastPlaylistName(data.name || null);
       } catch {}
     }
   }, []);
@@ -263,6 +265,7 @@ export function usePlaylistActions({
     setExistingPlaylistId: handleExistingPlaylistIdChange,
     existingPlaylistError,
     lastPlaylistId,
+    lastPlaylistName,
     
     // Loading states
     isCreatingPlaylist,

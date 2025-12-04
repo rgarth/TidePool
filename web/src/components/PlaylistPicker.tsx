@@ -4,6 +4,7 @@ import { CloseIcon, TidalLogo, ReloadIcon } from './Icons';
 interface PlaylistPickerProps {
   sessionId?: string;
   lastPlaylistId: string | null;
+  lastPlaylistName: string | null;
   existingPlaylistId: string;
   newPlaylistName: string;
   existingPlaylistError: string;
@@ -20,6 +21,7 @@ interface PlaylistPickerProps {
 export function PlaylistPicker({
   sessionId,
   lastPlaylistId,
+  lastPlaylistName,
   existingPlaylistId,
   newPlaylistName,
   existingPlaylistError,
@@ -81,7 +83,7 @@ export function PlaylistPicker({
               )}
             </button>
             <p className="text-muted text-xs text-center mt-xs">
-              ID: {lastPlaylistId.substring(0, 8)}...
+              {lastPlaylistName || `ID: ${lastPlaylistId.substring(0, 8)}...`}
             </p>
           </div>
         )}

@@ -109,6 +109,7 @@ export function SessionPage() {
       <PlaylistPicker
         sessionId={sessionId}
         lastPlaylistId={playlist.lastPlaylistId}
+        lastPlaylistName={playlist.lastPlaylistName}
         existingPlaylistId={playlist.existingPlaylistId}
         newPlaylistName={playlist.newPlaylistName}
         existingPlaylistError={playlist.existingPlaylistError}
