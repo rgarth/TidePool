@@ -40,10 +40,16 @@ export function PlaylistPicker({
         className="modal"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        style={{ position: 'relative' }}
       >
         {/* Close button - only show if there's already a playlist */}
         {hasLinkedPlaylist && (
-          <button className="modal-close" onClick={onClose} title="Cancel">
+          <button
+            className="modal-close"
+            onClick={onClose}
+            title="Cancel"
+            style={{ position: 'absolute', top: 16, right: 16 }}
+          >
             <CloseIcon size={20} />
           </button>
         )}
