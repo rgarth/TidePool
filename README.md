@@ -38,7 +38,9 @@ TidePool lets you build playlists together. The host creates a session, everyone
 
 1. Register your app at the [Tidal Developer Portal](https://developer.tidal.com/)
 2. Note your **Client ID** and **Client Secret**
-3. Set **Redirect URI** to: `http://localhost:3001/api/auth/callback`
+3. Set **Redirect URI** to your backend's callback URL:
+   - Local development: `http://localhost:3001/api/auth/callback`
+   - Production: `https://your-backend-domain.com/api/auth/callback`
 4. Enable these **Scopes**:
    - `user.read` — Get user info
    - `search.read` — Search the catalog
@@ -52,8 +54,14 @@ Create `server/.env`:
 ```env
 TIDAL_CLIENT_ID="your_client_id"
 TIDAL_CLIENT_SECRET="your_client_secret"
+
+# For local development:
 REDIRECT_URI="http://localhost:3001/api/auth/callback"
 CLIENT_URL="http://localhost:5173"
+
+# For production, use your actual domains instead:
+# REDIRECT_URI="https://your-backend.onrender.com/api/auth/callback"
+# CLIENT_URL="https://your-frontend.vercel.app"
 ```
 
 ### Installation
@@ -72,7 +80,7 @@ cd ../web
 npm install
 ```
 
-### Development
+### Local Development
 
 ```bash
 # Terminal 1 - Backend
@@ -84,7 +92,7 @@ cd web
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173 in your browser.
 
 ## Deployment
 
