@@ -18,7 +18,7 @@ interface DropdownMenuProps {
 
 export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
+  const [expandedSubmenu, setExpandedSubmenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -26,7 +26,7 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setOpenSubmenu(null);
+        setExpandedSubmenu(null);
       }
     }
     
@@ -41,7 +41,7 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false);
-        setOpenSubmenu(null);
+        setExpandedSubmenu(null);
       }
     }
     
@@ -72,17 +72,14 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
             transition={{ duration: 0.15 }}
           >
             {items.map((item, index) => (
-              <div
-                key={index}
-                className="dropdown-item-wrapper"
-                onMouseEnter={() => item.submenu && setOpenSubmenu(index)}
-                onMouseLeave={() => item.submenu && setOpenSubmenu(null)}
-                style={{ position: 'relative' }}
-              >
+              <div key={index}>
                 <button
                   className={`dropdown-item ${item.danger ? 'dropdown-item-danger' : ''}`}
                   onClick={() => {
-                    if (!item.disabled && item.onClick) {
+                    if (item.submenu) {
+                      // Toggle submenu expansion
+                      setExpandedSubmenu(expandedSubmenu === index ? null : index);
+                    } else if (!item.disabled && item.onClick) {
                       item.onClick();
                       setIsOpen(false);
                     }
@@ -94,18 +91,26 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
                     {item.icon}
                     {item.label}
                   </span>
-                  {item.submenu && <span style={{ opacity: 0.5 }}>›</span>}
+                  {item.submenu && (
+                    <span style={{ 
+                      opacity: 0.5, 
+                      transform: expandedSubmenu === index ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.15s ease',
+                    }}>
+                      ›
+                    </span>
+                  )}
                 </button>
                 
-                {/* Submenu */}
+                {/* Collapsible submenu */}
                 <AnimatePresence>
-                  {item.submenu && openSubmenu === index && (
+                  {item.submenu && expandedSubmenu === index && (
                     <motion.div
-                      className="dropdown-submenu"
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -8 }}
-                      transition={{ duration: 0.1 }}
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ overflow: 'hidden' }}
                     >
                       {item.submenu}
                     </motion.div>

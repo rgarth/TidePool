@@ -500,7 +500,7 @@ a:hover {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   z-index: var(--z-dropdown);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .dropdown-item {
@@ -533,17 +533,10 @@ a:hover {
   margin: var(--space-xs) 0;
 }
 
-/* Dropdown Submenu */
-.dropdown-submenu {
-  position: absolute;
-  right: 100%;
-  top: 0;
-  margin-right: 4px;
-  background: var(--bg-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: var(--z-dropdown);
+/* Dropdown expanded content (collapsible submenu) */
+.dropdown-menu .theme-picker {
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Theme Picker (in submenu) */
