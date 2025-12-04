@@ -207,3 +207,13 @@ export function InfoIcon({ size = 16, color = 'currentColor', strokeWidth = 2, s
   );
 }
 
+// Logout icon (power off / disconnect)
+export function LogoutIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+      <line x1="12" y1="2" x2="12" y2="12" />
+    </svg>
+  );
+}
+

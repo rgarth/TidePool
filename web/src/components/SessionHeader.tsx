@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { DropdownMenu } from './DropdownMenu';
 import { ThemePicker } from './ThemePicker';
-import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon } from './Icons';
+import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon } from './Icons';
 
 interface SessionHeaderProps {
   sessionName: string;
@@ -17,6 +17,7 @@ interface SessionHeaderProps {
   onOpenPlaylistPicker: () => void;
   onShare: () => void;
   onExit: () => void;
+  onLogout?: () => void;
   onSearchChange: (query: string) => void;
   onClearSearch: () => void;
   onTabChange: (tab: 'playlist' | 'participants') => void;
@@ -36,6 +37,7 @@ export function SessionHeader({
   onOpenPlaylistPicker,
   onShare,
   onExit,
+  onLogout,
   onSearchChange,
   onClearSearch,
   onTabChange,
@@ -68,11 +70,19 @@ export function SessionHeader({
     });
   }
   
+  if (isHost && onLogout) {
+    menuItems.push({
+      label: 'Disconnect Tidal',
+      icon: <LogoutIcon size={18} />,
+      onClick: onLogout,
+      danger: true,
+    });
+  }
+  
   menuItems.push({
     label: 'Exit session',
     icon: <ExitIcon size={18} />,
     onClick: onExit,
-    danger: true,
   });
 
   return (

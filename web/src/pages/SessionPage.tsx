@@ -12,9 +12,10 @@ import { SearchResults } from '../components/SearchResults';
 import { PlaylistView } from '../components/PlaylistView';
 import { ParticipantsList } from '../components/ParticipantsList';
 import { ShareModal } from '../components/ShareModal';
+import { LogoutModal } from '../components/LogoutModal';
 import { BottomBar } from '../components/BottomBar';
 import { PageSpinner } from '../components/Spinner';
-import { setHostToken } from '../config';
+import { setHostToken, clearHostToken, apiFetch } from '../config';
 
 export function SessionPage() {
   const { sessionId } = useParams();
@@ -41,6 +42,8 @@ export function SessionPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // Auth handling
   const authSuccess = searchParams.get('auth') === 'success';
@@ -61,6 +64,21 @@ export function SessionPage() {
     sessionId,
     playlistUrl: sessionState?.tidalPlaylistUrl,
   });
+
+  // Handle logout
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+      clearHostToken();
+      navigate('/');
+    } catch (err) {
+      console.error('Logout failed:', err);
+      // Navigate anyway - token is cleared locally
+      clearHostToken();
+      navigate('/');
+    }
+  };
 
   // Extract and store token from URL (for cross-origin auth)
   useEffect(() => {
@@ -147,6 +165,7 @@ export function SessionPage() {
         onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
         onShare={share.openShareModal}
         onExit={() => navigate('/')}
+        onLogout={() => setShowLogoutModal(true)}
         onSearchChange={setSearchQuery}
         onClearSearch={clearSearch}
         onTabChange={setActiveTab}
@@ -202,6 +221,13 @@ export function SessionPage() {
         onClose={share.closeShareModal}
         onCopyLink={share.copyJoinUrl}
         onCopyCode={share.copyCode}
+      />
+
+      <LogoutModal
+        isOpen={showLogoutModal}
+        isLoggingOut={isLoggingOut}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
       />
     </div>
   );
