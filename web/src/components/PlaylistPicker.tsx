@@ -72,19 +72,19 @@ export function PlaylistPicker({
               className="btn btn-secondary btn-block"
               onClick={() => onUseExistingPlaylist(lastPlaylistId)}
               disabled={isLoadingExisting}
+              style={{ overflow: 'hidden' }}
             >
               {isLoadingExisting ? (
                 'Loading...'
               ) : (
                 <>
-                  <ReloadIcon size={18} />
-                  Resume Last Playlist
+                  <ReloadIcon size={18} style={{ flexShrink: 0 }} />
+                  <span className="truncate">
+                    {lastPlaylistName ? `Resume: ${lastPlaylistName}` : 'Resume Last Playlist'}
+                  </span>
                 </>
               )}
             </button>
-            <p className="text-muted text-xs text-center mt-xs">
-              {lastPlaylistName || `ID: ${lastPlaylistId.substring(0, 8)}...`}
-            </p>
           </div>
         )}
         
