@@ -74,7 +74,7 @@ export function SessionHeader({
   menuItems.push({
     label: 'Theme',
     icon: <PaletteIcon size={18} />,
-    submenu: (closeMenu) => <ThemePicker onSelect={closeMenu} />,
+    submenu: (closeMenu: () => void) => <ThemePicker onSelect={closeMenu} />,
   });
   
   if (isHost && onLogout) {
