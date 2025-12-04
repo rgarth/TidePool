@@ -70,11 +70,11 @@ export function SessionHeader({
     });
   }
   
-  // Theme submenu
+  // Theme submenu (collapsible)
   menuItems.push({
     label: 'Theme',
     icon: <PaletteIcon size={18} />,
-    submenu: <ThemePicker />,
+    submenu: (closeMenu) => <ThemePicker onSelect={closeMenu} />,
   });
   
   if (isHost && onLogout) {

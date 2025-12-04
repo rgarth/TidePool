@@ -8,7 +8,7 @@ interface MenuItem {
   onClick?: () => void;
   danger?: boolean;
   disabled?: boolean;
-  submenu?: React.ReactNode;
+  submenu?: React.ReactNode | ((closeMenu: () => void) => React.ReactNode);
 }
 
 interface DropdownMenuProps {
@@ -20,6 +20,20 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSubmenu, setExpandedSubmenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Reset expanded submenu when menu opens
+  const handleToggleMenu = () => {
+    if (!isOpen) {
+      setExpandedSubmenu(null);
+    }
+    setIsOpen(!isOpen);
+  };
+
+  // Close everything
+  const closeMenu = () => {
+    setIsOpen(false);
+    setExpandedSubmenu(null);
+  };
 
   // Close on click outside
   useEffect(() => {
@@ -55,7 +69,7 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
     <div className="dropdown" ref={menuRef}>
       <button
         className="btn btn-ghost btn-icon"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggleMenu}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
@@ -112,7 +126,9 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
                       transition={{ duration: 0.15 }}
                       style={{ overflow: 'hidden' }}
                     >
-                      {item.submenu}
+                      {typeof item.submenu === 'function' 
+                        ? item.submenu(closeMenu) 
+                        : item.submenu}
                     </motion.div>
                   )}
                 </AnimatePresence>

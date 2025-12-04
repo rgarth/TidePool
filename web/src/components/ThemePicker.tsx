@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { THEME_COLORS, getStoredTheme, setStoredTheme, applyTheme } from '../theme';
 
-export function ThemePicker() {
+interface ThemePickerProps {
+  onSelect?: () => void;
+}
+
+export function ThemePicker({ onSelect }: ThemePickerProps) {
   const [currentTheme, setCurrentTheme] = useState(getStoredTheme);
 
   const handleSelect = (themeId: string) => {
     setCurrentTheme(themeId);
     setStoredTheme(themeId);
     applyTheme(themeId);
+    onSelect?.();
   };
 
   return (
