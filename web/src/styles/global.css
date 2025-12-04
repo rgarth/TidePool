@@ -500,7 +500,7 @@ a:hover {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   z-index: var(--z-dropdown);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dropdown-item {
@@ -538,13 +538,12 @@ a:hover {
   position: absolute;
   right: 100%;
   top: 0;
-  margin-right: var(--space-xs);
+  margin-right: 4px;
   background: var(--bg-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   z-index: var(--z-dropdown);
-  overflow: hidden;
 }
 
 /* Theme Picker (in submenu) */
