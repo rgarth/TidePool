@@ -1,7 +1,11 @@
 // Token persistence and management
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import { UserTokens } from '../types/index.js';
+
+// Load dotenv BEFORE reading any env vars (ES modules hoist imports, so this must be here)
+dotenv.config();
 
 // Token persistence file (for development - survives server restarts)
 const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');
