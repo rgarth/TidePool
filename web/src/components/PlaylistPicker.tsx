@@ -9,7 +9,9 @@ interface PlaylistPickerProps {
   isLoadingExisting: boolean;
   isCreatingPlaylist: boolean;
   hasLinkedPlaylist: boolean;
+  isCancelling?: boolean;
   onClose: () => void;
+  onCancel?: () => void;
   onCreateNewPlaylist: () => void;
   onUseExistingPlaylist: () => void;
   onNewPlaylistNameChange: (name: string) => void;
@@ -24,7 +26,9 @@ export function PlaylistPicker({
   isLoadingExisting,
   isCreatingPlaylist,
   hasLinkedPlaylist,
+  isCancelling,
   onClose,
+  onCancel,
   onCreateNewPlaylist,
   onUseExistingPlaylist,
   onNewPlaylistNameChange,
@@ -137,6 +141,17 @@ export function PlaylistPicker({
             If it expires, just log in again and share a new invite link.
           </p>
         </div>
+
+        {/* Cancel button - only show for new sessions without a playlist */}
+        {!hasLinkedPlaylist && onCancel && (
+          <button
+            className="btn btn-ghost btn-block mt-lg"
+            onClick={onCancel}
+            disabled={isCancelling}
+          >
+            {isCancelling ? 'Cancelling...' : 'Cancel'}
+          </button>
+        )}
       </motion.div>
     </div>
   );

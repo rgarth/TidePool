@@ -57,6 +57,7 @@ export function SessionPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [userDescription, setUserDescription] = useState('');
+  const [isCancellingSession, setIsCancellingSession] = useState(false);
   
   // Auth handling
   const authSuccess = searchParams.get('auth') === 'success';
@@ -104,6 +105,17 @@ export function SessionPage() {
       // Navigate anyway
       navigate('/');
     }
+  };
+
+  // Handle cancel new session (before playlist is set)
+  const handleCancelSession = async () => {
+    setIsCancellingSession(true);
+    try {
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+    }
+    navigate('/session');
   };
 
   // Handle playlist edit (name and description)
@@ -202,7 +214,9 @@ export function SessionPage() {
         isLoadingExisting={playlist.isLoadingExisting}
         isCreatingPlaylist={playlist.isCreatingPlaylist}
         hasLinkedPlaylist={!!sessionState.tidalPlaylistId}
+        isCancelling={isCancellingSession}
         onClose={() => setShowPlaylistPicker(false)}
+        onCancel={handleCancelSession}
         onCreateNewPlaylist={async () => {
           const success = await playlist.createPlaylist();
           if (success) setShowPlaylistPicker(false);
