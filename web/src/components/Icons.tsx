@@ -79,7 +79,7 @@ export function MenuIcon({ size = 18, color = 'currentColor', strokeWidth = 2, s
   );
 }
 
-// Switch/swap icon (for switching playlists)
+// Switch/swap icon (for changing sessions)
 export function SwitchIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
@@ -87,17 +87,6 @@ export function SwitchIcon({ size = 18, color = 'currentColor', strokeWidth = 2,
       <path d="M20 7H4" />
       <path d="M8 21l-4-4 4-4" />
       <path d="M4 17h16" />
-    </svg>
-  );
-}
-
-// Exit/logout icon
-export function ExitIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} style={style}>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }
@@ -236,6 +225,26 @@ export function EditIcon({ size = 18, color = 'currentColor', strokeWidth = 2, s
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
       <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+// Warning/Alert triangle icon
+export function WarningIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
+// Stop/End icon
+export function StopIcon({ size = 18, color = 'currentColor', strokeWidth = 2, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   );
 }

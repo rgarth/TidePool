@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { apiFetch } from '../config';
 import type { SearchResult } from '../types';
 
@@ -63,32 +63,6 @@ export function usePlaylistActions({
   const [addingTrackId, setAddingTrackId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
-  
-  // Last used playlist (from localStorage)
-  const [lastPlaylistId, setLastPlaylistId] = useState<string | null>(null);
-  const [lastPlaylistName, setLastPlaylistName] = useState<string | null>(null);
-  
-  // Load last playlist from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('tidepool_last_playlist');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setLastPlaylistId(data.id);
-        setLastPlaylistName(data.name || null);
-      } catch {}
-    }
-  }, []);
-  
-  // Save playlist to localStorage
-  const saveLastPlaylist = useCallback((id: string, name: string) => {
-    localStorage.setItem('tidepool_last_playlist', JSON.stringify({
-      id,
-      name,
-      createdAt: new Date().toISOString(),
-    }));
-    setLastPlaylistId(id);
-  }, []);
 
   // Create new playlist
   const createPlaylist = useCallback(async () => {
@@ -109,7 +83,6 @@ export function usePlaylistActions({
       const data = await response.json();
       onPlaylistSet(data.id, data.listenUrl, name);
       setNewPlaylistName('');
-      saveLastPlaylist(data.id, name);
       
       // Trigger refresh to sync
       setTimeout(() => {
@@ -123,7 +96,7 @@ export function usePlaylistActions({
     } finally {
       setIsCreatingPlaylist(false);
     }
-  }, [newPlaylistName, sessionId, onPlaylistSet, onStartLoading, saveLastPlaylist]);
+  }, [newPlaylistName, sessionId, onPlaylistSet, onStartLoading]);
 
   // Load existing playlist by ID or URL
   const loadExistingPlaylist = useCallback(async (idOrUrl?: string) => {
@@ -157,7 +130,6 @@ export function usePlaylistActions({
       
       const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
       onPlaylistSet(cleanId, listenUrl, playlistName);
-      saveLastPlaylist(cleanId, playlistName);
       
       // Trigger refresh to sync
       setTimeout(() => {
@@ -171,7 +143,7 @@ export function usePlaylistActions({
     } finally {
       setIsLoadingExisting(false);
     }
-  }, [existingPlaylistId, sessionId, onPlaylistSet, onStartLoading, saveLastPlaylist]);
+  }, [existingPlaylistId, sessionId, onPlaylistSet, onStartLoading]);
 
   // Refresh playlist from Tidal
   const refreshPlaylist = useCallback(async () => {
@@ -264,8 +236,6 @@ export function usePlaylistActions({
     existingPlaylistId,
     setExistingPlaylistId: handleExistingPlaylistIdChange,
     existingPlaylistError,
-    lastPlaylistId,
-    lastPlaylistName,
     
     // Loading states
     isCreatingPlaylist,

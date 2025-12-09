@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiFetch } from '../config';
+import { apiFetch, getHostToken } from '../config';
 
 /**
  * Hook for managing Tidal authentication state.
@@ -8,12 +8,15 @@ import { apiFetch } from '../config';
 export function useAuth(options?: { delayCheck?: number }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [hostToken, setHostToken] = useState<string | null>(null);
 
   const checkAuthStatus = useCallback(async () => {
     try {
       const response = await apiFetch('/api/auth/status');
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
+      // Get hostToken from localStorage after auth check
+      setHostToken(getHostToken());
     } catch (err) {
       console.error('Auth check failed:', err);
       setIsAuthenticated(false);
@@ -32,6 +35,7 @@ export function useAuth(options?: { delayCheck?: number }) {
     isAuthenticated,
     isChecking,
     checkAuthStatus,
+    hostToken,
   };
 }
 

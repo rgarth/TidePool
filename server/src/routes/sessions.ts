@@ -77,6 +77,44 @@ router.post('/', (req: Request, res: Response) => {
   });
 });
 
+// Get host's existing sessions
+router.get('/mine', (req: Request, res: Response) => {
+  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
+  
+  if (!hostToken) {
+    return res.json({ sessions: [] });
+  }
+  
+  const mySessions: Array<{
+    id: string;
+    name: string;
+    playlistName?: string;
+    playlistId?: string;
+    trackCount: number;
+    participantCount: number;
+    createdAt: Date;
+  }> = [];
+  
+  sessions.forEach((session) => {
+    if (session.hostToken === hostToken) {
+      mySessions.push({
+        id: session.id,
+        name: session.name,
+        playlistName: session.name,
+        playlistId: session.tidalPlaylistId,
+        trackCount: session.tracks.length,
+        participantCount: session.participants.size,
+        createdAt: session.createdAt,
+      });
+    }
+  });
+  
+  // Sort by most recent first
+  mySessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  res.json({ sessions: mySessions });
+});
+
 // Get session details
 router.get('/:sessionId', (req: Request, res: Response) => {
   const session = sessions.get(req.params.sessionId.toUpperCase());
@@ -92,6 +130,28 @@ router.get('/:sessionId', (req: Request, res: Response) => {
     tidalPlaylistUrl: session.tidalPlaylistUrl,
     participantCount: session.participants.size,
   });
+});
+
+// End/delete a session (host only)
+router.delete('/:sessionId', (req: Request, res: Response) => {
+  const sessionId = req.params.sessionId.toUpperCase();
+  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
+  
+  const session = sessions.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  // Verify the requester is the host
+  if (session.hostToken !== hostToken) {
+    return res.status(403).json({ error: 'Only the host can end this session' });
+  }
+  
+  // Delete the session
+  sessions.delete(sessionId);
+  console.log(`Session ${sessionId} ended by host`);
+  
+  res.json({ success: true, message: 'Session ended' });
 });
 
 export default router;

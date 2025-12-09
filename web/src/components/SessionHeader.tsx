@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { DropdownMenu } from './DropdownMenu';
 import { ThemePicker } from './ThemePicker';
-import { RefreshIcon, SwitchIcon, ExitIcon, SearchIcon, CloseIcon, LogoutIcon, PaletteIcon, EditIcon } from './Icons';
+import { RefreshIcon, SwitchIcon, SearchIcon, CloseIcon, LogoutIcon, PaletteIcon, EditIcon, StopIcon } from './Icons';
 
 interface SessionHeaderProps {
   sessionName: string;
@@ -14,9 +14,9 @@ interface SessionHeaderProps {
   searchQuery: string;
   searchDisabled?: boolean;
   onRefresh: () => void;
-  onOpenPlaylistPicker: () => void;
+  onChangeSession: () => void;
   onShare: () => void;
-  onExit: () => void;
+  onEndSession?: () => void;
   onLogout?: () => void;
   onEdit?: () => void;
   onSearchChange: (query: string) => void;
@@ -35,9 +35,9 @@ export function SessionHeader({
   searchQuery,
   searchDisabled,
   onRefresh,
-  onOpenPlaylistPicker,
+  onChangeSession,
   onShare,
-  onExit,
+  onEndSession,
   onLogout,
   onEdit,
   onSearchChange,
@@ -66,9 +66,9 @@ export function SessionHeader({
   
   if (isHost) {
     menuItems.push({
-      label: 'Switch playlist',
+      label: 'Change session',
       icon: <SwitchIcon size={18} />,
-      onClick: onOpenPlaylistPicker,
+      onClick: onChangeSession,
     });
   }
   
@@ -88,11 +88,14 @@ export function SessionHeader({
     });
   }
   
-  menuItems.push({
-    label: 'Exit session',
-    icon: <ExitIcon size={18} />,
-    onClick: onExit,
-  });
+  if (isHost && onEndSession) {
+    menuItems.push({
+      label: 'End session',
+      icon: <StopIcon size={18} />,
+      onClick: onEndSession,
+      danger: true,
+    });
+  }
 
   return (
     <header className="header container">

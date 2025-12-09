@@ -14,6 +14,7 @@ import { ParticipantsList } from '../components/ParticipantsList';
 import { ShareModal } from '../components/ShareModal';
 import { LogoutModal } from '../components/LogoutModal';
 import { EditPlaylistModal } from '../components/EditPlaylistModal';
+import { EndSessionModal } from '../components/EndSessionModal';
 import { BottomBar } from '../components/BottomBar';
 import { PageSpinner } from '../components/Spinner';
 import { setHostToken, clearHostToken, apiFetch } from '../config';
@@ -44,6 +45,8 @@ export function SessionPage() {
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showEndSessionModal, setShowEndSessionModal] = useState(false);
+  const [isEndingSession, setIsEndingSession] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -80,6 +83,19 @@ export function SessionPage() {
       console.error('Logout failed:', err);
       // Navigate anyway - token is cleared locally
       clearHostToken();
+      navigate('/');
+    }
+  };
+
+  // Handle end session
+  const handleEndSession = async () => {
+    setIsEndingSession(true);
+    try {
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      navigate('/');
+    } catch (err) {
+      console.error('Failed to end session:', err);
+      // Navigate anyway
       navigate('/');
     }
   };
@@ -174,8 +190,6 @@ export function SessionPage() {
     return (
       <PlaylistPicker
         sessionId={sessionId}
-        lastPlaylistId={playlist.lastPlaylistId}
-        lastPlaylistName={playlist.lastPlaylistName}
         existingPlaylistId={playlist.existingPlaylistId}
         newPlaylistName={playlist.newPlaylistName}
         existingPlaylistError={playlist.existingPlaylistError}
@@ -187,8 +201,8 @@ export function SessionPage() {
           const success = await playlist.createPlaylist();
           if (success) setShowPlaylistPicker(false);
         }}
-        onUseExistingPlaylist={async (id) => {
-          const success = await playlist.loadExistingPlaylist(id);
+        onUseExistingPlaylist={async () => {
+          const success = await playlist.loadExistingPlaylist();
           if (success) setShowPlaylistPicker(false);
         }}
         onNewPlaylistNameChange={playlist.setNewPlaylistName}
@@ -210,9 +224,9 @@ export function SessionPage() {
         searchQuery={searchQuery}
         searchDisabled={playlistDeleted || !!sessionExpired}
         onRefresh={playlist.refreshPlaylist}
-        onOpenPlaylistPicker={() => setShowPlaylistPicker(true)}
+        onChangeSession={() => navigate('/host')}
         onShare={share.openShareModal}
-        onExit={() => navigate('/')}
+        onEndSession={() => setShowEndSessionModal(true)}
         onLogout={() => setShowLogoutModal(true)}
         onEdit={() => setShowEditModal(true)}
         onSearchChange={setSearchQuery}
@@ -244,7 +258,7 @@ export function SessionPage() {
                 sessionExpired={sessionExpired}
                 onSelectNewPlaylist={() => {
                   clearUnavailableFlag();
-                  setShowPlaylistPicker(true);
+                  navigate('/host');
                 }}
               />
             </motion.div>
@@ -286,6 +300,14 @@ export function SessionPage() {
         isSaving={isSavingEdit}
         onClose={() => setShowEditModal(false)}
         onSave={handleEditPlaylist}
+      />
+
+      <EndSessionModal
+        isOpen={showEndSessionModal}
+        sessionCode={sessionId || ''}
+        isEnding={isEndingSession}
+        onClose={() => setShowEndSessionModal(false)}
+        onConfirm={handleEndSession}
       />
     </div>
   );

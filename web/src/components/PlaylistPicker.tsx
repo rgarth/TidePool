@@ -1,10 +1,8 @@
 import { motion } from 'framer-motion';
-import { CloseIcon, TidalLogo, ReloadIcon } from './Icons';
+import { CloseIcon, TidalLogo } from './Icons';
 
 interface PlaylistPickerProps {
   sessionId?: string;
-  lastPlaylistId: string | null;
-  lastPlaylistName: string | null;
   existingPlaylistId: string;
   newPlaylistName: string;
   existingPlaylistError: string;
@@ -13,15 +11,13 @@ interface PlaylistPickerProps {
   hasLinkedPlaylist: boolean;
   onClose: () => void;
   onCreateNewPlaylist: () => void;
-  onUseExistingPlaylist: (playlistId?: string) => void;
+  onUseExistingPlaylist: () => void;
   onNewPlaylistNameChange: (name: string) => void;
   onExistingPlaylistIdChange: (id: string) => void;
 }
 
 export function PlaylistPicker({
   sessionId,
-  lastPlaylistId,
-  lastPlaylistName,
   existingPlaylistId,
   newPlaylistName,
   existingPlaylistError,
@@ -71,29 +67,6 @@ export function PlaylistPicker({
           Create new or continue editing an existing one
         </p>
         
-        {/* Resume last playlist */}
-        {lastPlaylistId && (
-          <div className="mb-lg">
-            <button
-              className="btn btn-secondary btn-block"
-              onClick={() => onUseExistingPlaylist(lastPlaylistId)}
-              disabled={isLoadingExisting}
-              style={{ overflow: 'hidden' }}
-            >
-              {isLoadingExisting ? (
-                'Loading...'
-              ) : (
-                <>
-                  <ReloadIcon size={18} style={{ flexShrink: 0 }} />
-                  <span className="truncate">
-                    {lastPlaylistName ? `Resume: ${lastPlaylistName}` : 'Resume Last Playlist'}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
-        
         {/* Create new playlist */}
         <div className="mb-lg">
           <label className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
@@ -141,7 +114,7 @@ export function PlaylistPicker({
             />
             <button
               className="btn btn-secondary"
-              onClick={() => onUseExistingPlaylist()}
+              onClick={onUseExistingPlaylist}
               disabled={isLoadingExisting || !existingPlaylistId.trim()}
             >
               {isLoadingExisting ? '...' : 'Load'}

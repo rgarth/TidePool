@@ -14,12 +14,33 @@ import {
   saveTokens,
   getHostAccessToken,
   getHostTokenFromRequest,
-  TokenExpiredError,
 } from '../services/tokens.js';
 import { PendingAuth } from '../types/index.js';
 import { sessions } from './sessions.js';
 
 const router = Router();
+
+// Simple rate limiting for auth endpoints
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+const AUTH_RATE_LIMIT = 10; // max attempts
+const AUTH_RATE_WINDOW = 60000; // per minute
+
+function checkAuthRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const attempt = authAttempts.get(ip);
+  
+  if (!attempt || now > attempt.resetAt) {
+    authAttempts.set(ip, { count: 1, resetAt: now + AUTH_RATE_WINDOW });
+    return true;
+  }
+  
+  if (attempt.count >= AUTH_RATE_LIMIT) {
+    return false;
+  }
+  
+  attempt.count++;
+  return true;
+}
 
 // PKCE helpers
 function generateCodeVerifier(): string {
@@ -35,6 +56,13 @@ export const pendingAuth = new Map<string, PendingAuth>();
 
 // Start OAuth login flow
 router.get('/login', (req: Request, res: Response) => {
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  
+  if (!checkAuthRateLimit(clientIp)) {
+    console.warn(`Rate limit exceeded for auth from ${clientIp}`);
+    return res.status(429).json({ error: 'Too many authentication attempts. Please wait a minute.' });
+  }
+  
   const { sessionId } = req.query;
   
   if (!sessionId || typeof sessionId !== 'string') {
@@ -125,15 +153,9 @@ router.get('/callback', async (req: Request, res: Response) => {
     let userId = '';
     let username = '';
     
-    const userUrls = [
-      'https://openapi.tidal.com/v2/users/me',
-      'https://openapi.tidal.com/users/me',
-      'https://api.tidal.com/v1/users/me',
-    ];
-    
-    for (const url of userUrls) {
-      console.log(`>>> Trying user info URL: ${url}`);
-      const userResponse = await fetch(url, {
+    // Get user info - use v2 endpoint (the one that works with OAuth tokens)
+    try {
+      const userResponse = await fetch('https://openapi.tidal.com/v2/users/me', {
         headers: {
           'Authorization': `Bearer ${tokens.access_token}`,
           'Content-Type': 'application/vnd.api+json',
@@ -148,9 +170,9 @@ router.get('/callback', async (req: Request, res: Response) => {
         countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
         userId = data.id?.toString() || attrs.userId?.toString() || data.userId?.toString() || '';
         username = attrs.username || '';
-        console.log(`User: ${username}, country: ${countryCode}, userId: ${userId}`);
-        break;
       }
+    } catch (err) {
+      console.warn('Failed to fetch user info, using defaults');
     }
 
     // Store tokens
@@ -199,11 +221,6 @@ router.get('/status', (req: Request, res: Response) => {
   res.json({
     authenticated: !!tokens,
     expiresAt: tokens?.expiresAt,
-    debug: {
-      cookiePresent: !!req.cookies?.tidepool_host,
-      headerPresent: !!req.headers['x-host-token'],
-      tokensInMemory: hostTokens.size,
-    }
   });
 });
 
@@ -225,15 +242,7 @@ router.get('/credentials', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  let auth;
-  try {
-    auth = await getHostAccessToken(hostToken);
-  } catch (err) {
-    if (err instanceof TokenExpiredError) {
-      return res.status(401).json({ error: 'Session expired', sessionExpired: true });
-    }
-    throw err;
-  }
+  const auth = await getHostAccessToken(hostToken);
   
   if (!auth) {
     return res.status(401).json({ error: 'Session expired' });
