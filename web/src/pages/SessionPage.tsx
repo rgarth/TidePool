@@ -22,13 +22,13 @@ import { setHostToken, clearHostToken, apiFetch } from '../config';
 
 export function SessionPage() {
   const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   // If no sessionId, show the picker view
   if (!sessionId) {
     return <SessionPickerView />;
   }
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   
   // Socket connection and session state
   const {

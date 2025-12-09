@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from './Icons';
 import { PageSpinner } from './Spinner';
+import { EndSessionModal } from './EndSessionModal';
 import { API_URL, apiFetch, clearHostToken } from '../config';
 
 interface ExistingSession {
@@ -360,54 +361,16 @@ export function SessionPickerView() {
           </motion.div>
         )}
 
-        {sessionToEnd && (
-          <motion.div
-            className="modal-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSessionToEnd(null)}
-          >
-            <motion.div
-              className="modal modal-sm"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button className="modal-close" onClick={() => setSessionToEnd(null)}>
-                <CloseIcon size={20} />
-              </button>
-              
-              <div className="flex justify-center mb-lg">
-                <div className="flex items-center justify-center" style={{
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                }}>
-                  <WarningIcon size={28} color="var(--text-error)" />
-                </div>
-              </div>
-              
-              <h3 className="text-center mb-sm">End Session?</h3>
-              <p className="text-secondary text-center mb-lg">
-                This will end <strong>{sessionToEnd.name}</strong> ({sessionToEnd.id}).
-              </p>
-              <p className="text-muted text-sm text-center mb-xl">
-                The Tidal playlist will remain in your library.
-              </p>
-              
-              <div className="flex gap-sm">
-                <button className="btn btn-secondary flex-1" onClick={() => setSessionToEnd(null)} disabled={isEndingSession}>
-                  Cancel
-                </button>
-                <button className="btn btn-danger flex-1" onClick={handleEndSession} disabled={isEndingSession}>
-                  {isEndingSession ? 'Ending...' : 'End Session'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
       </AnimatePresence>
+
+      <EndSessionModal
+        isOpen={!!sessionToEnd}
+        sessionCode={sessionToEnd?.id || ''}
+        sessionName={sessionToEnd?.name}
+        isEnding={isEndingSession}
+        onClose={() => setSessionToEnd(null)}
+        onConfirm={handleEndSession}
+      />
     </div>
   );
 }

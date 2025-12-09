@@ -4,12 +4,13 @@ import { CloseIcon, WarningIcon } from './Icons';
 interface EndSessionModalProps {
   isOpen: boolean;
   sessionCode: string;
+  sessionName?: string;
   onClose: () => void;
   onConfirm: () => void;
   isEnding?: boolean;
 }
 
-export function EndSessionModal({ isOpen, sessionCode, onClose, onConfirm, isEnding }: EndSessionModalProps) {
+export function EndSessionModal({ isOpen, sessionCode, sessionName, onClose, onConfirm, isEnding }: EndSessionModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -45,8 +46,12 @@ export function EndSessionModal({ isOpen, sessionCode, onClose, onConfirm, isEnd
             <h3 className="text-center mb-sm">End Session?</h3>
             
             <p className="text-secondary text-center mb-lg">
-              This will permanently end session <code className="text-accent">{sessionCode}</code>. 
-              All participants will be disconnected and won't be able to add songs anymore.
+              {sessionName ? (
+                <>This will end <strong>{sessionName}</strong> ({sessionCode}).</>
+              ) : (
+                <>This will permanently end session <code className="text-accent">{sessionCode}</code>.</>
+              )}
+              {' '}All participants will be disconnected.
             </p>
             
             <p className="text-muted text-sm text-center mb-xl">
