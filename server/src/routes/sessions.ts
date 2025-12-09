@@ -1,7 +1,7 @@
 // Session management routes
 import { Router, Request, Response } from 'express';
 import { Session } from '../types/index.js';
-import { CLIENT_URL } from '../services/tokens.js';
+import { CLIENT_URL, hostTokens } from '../services/tokens.js';
 
 const router = Router();
 
@@ -113,6 +113,60 @@ router.get('/mine', (req: Request, res: Response) => {
   mySessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   
   res.json({ sessions: mySessions });
+});
+
+// Get public session list for a host (by username)
+router.get('/host/:username', (req: Request, res: Response) => {
+  const { username } = req.params;
+  const usernameLower = username.toLowerCase();
+  
+  // Find the hostToken for this username
+  let hostToken: string | null = null;
+  let hostUsername: string | null = null;
+  
+  for (const [token, data] of hostTokens.entries()) {
+    if (data.username?.toLowerCase() === usernameLower) {
+      hostToken = token;
+      hostUsername = data.username || null;
+      break;
+    }
+  }
+  
+  if (!hostToken) {
+    return res.status(404).json({ error: 'Host not found' });
+  }
+  
+  // Find all sessions for this host
+  const hostSessions: Array<{
+    id: string;
+    name: string;
+    trackCount: number;
+  }> = [];
+  
+  sessions.forEach((session) => {
+    if (session.hostToken === hostToken) {
+      hostSessions.push({
+        id: session.id,
+        name: session.name,
+        trackCount: session.tracks.length,
+      });
+    }
+  });
+  
+  // Sort by most recent first
+  hostSessions.sort((a, b) => {
+    const sessionA = sessions.get(a.id);
+    const sessionB = sessions.get(b.id);
+    if (!sessionA || !sessionB) return 0;
+    return new Date(sessionB.createdAt).getTime() - new Date(sessionA.createdAt).getTime();
+  });
+  
+  res.json({
+    host: {
+      username: hostUsername,
+    },
+    sessions: hostSessions,
+  });
 });
 
 // Get session details

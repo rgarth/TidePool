@@ -949,6 +949,77 @@ a:hover {
 .animate-slide-up { animation: slide-up 0.3s ease-out; }
 
 /* ─────────────────────────────────────────────────────────────────
+   Session Cards (for host hub)
+   ───────────────────────────────────────────────────────────────── */
+.session-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-lg);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.session-card:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+  transform: translateX(4px);
+}
+
+.session-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: var(--radius-md);
+  color: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.session-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-card-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.session-card-meta {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.session-card-arrow {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.session-card:hover .session-card-arrow {
+  transform: translateX(4px);
+  color: var(--accent-primary);
+}
+
+/* Hub share box */
+.hub-share-box {
+  padding: var(--space-md);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Scrollbar
    ───────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {

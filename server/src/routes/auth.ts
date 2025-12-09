@@ -221,6 +221,8 @@ router.get('/status', (req: Request, res: Response) => {
   res.json({
     authenticated: !!tokens,
     expiresAt: tokens?.expiresAt,
+    userId: tokens?.userId || null,
+    username: tokens?.username || null,
   });
 });
 

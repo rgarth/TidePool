@@ -9,12 +9,16 @@ export function useAuth(options?: { delayCheck?: number }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [hostToken, setHostToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   const checkAuthStatus = useCallback(async () => {
     try {
       const response = await apiFetch('/api/auth/status');
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
+      setUserId(data.userId || null);
+      setUsername(data.username || null);
       // Get hostToken from localStorage after auth check
       setHostToken(getHostToken());
     } catch (err) {
@@ -36,6 +40,8 @@ export function useAuth(options?: { delayCheck?: number }) {
     isChecking,
     checkAuthStatus,
     hostToken,
+    userId,
+    username,
   };
 }
 

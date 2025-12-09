@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon } from '../components/Icons';
+import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon } from '../components/Icons';
 import { PageSpinner } from '../components/Spinner';
 import { API_URL, apiFetch, clearHostToken } from '../config';
 
@@ -19,11 +19,12 @@ interface ExistingSession {
 export function HostPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, isChecking, hostToken } = useAuth();
+  const { isAuthenticated, isChecking, hostToken, username } = useAuth();
   const [existingSessions, setExistingSessions] = useState<ExistingSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [hubCopied, setHubCopied] = useState(false);
   
   // Hidden feature: ?resume=CODE allows reusing a session code after server restart
   const resumeCode = searchParams.get('resume');
@@ -68,6 +69,20 @@ export function HostPage() {
     setExistingSessions([]);
     setShowDisconnectModal(false);
     window.location.reload(); // Refresh to update auth state
+  };
+
+  // Session hub URL
+  const hubUrl = username ? `${window.location.origin}/u/${username}` : null;
+  
+  const copyHubUrl = async () => {
+    if (!hubUrl) return;
+    try {
+      await navigator.clipboard.writeText(hubUrl);
+      setHubCopied(true);
+      setTimeout(() => setHubCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   const handleCreateNew = async (forceReauth = false) => {
@@ -223,6 +238,45 @@ export function HostPage() {
 
             {isLoadingSessions && isAuthenticated && (
               <p className="text-muted text-sm mb-lg">Checking for active sessions...</p>
+            )}
+
+            {/* Share session hub */}
+            {isAuthenticated && username && existingSessions.length > 0 && (
+              <div className="hub-share-box mb-lg">
+                <div className="flex items-center gap-sm mb-sm">
+                  <LinkIcon size={16} />
+                  <span className="text-secondary text-sm">Share all your sessions</span>
+                </div>
+                <div className="flex gap-sm">
+                  <input
+                    type="text"
+                    className="input flex-1 text-sm"
+                    value={hubUrl || ''}
+                    readOnly
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    onClick={copyHubUrl}
+                    style={{ minWidth: 80 }}
+                  >
+                    {hubCopied ? (
+                      <>
+                        <CheckIcon size={16} />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <CopyIcon size={16} />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-muted text-xs mt-sm">
+                  Anyone with this link can see and join any of your active sessions
+                </p>
+              </div>
             )}
 
             <button
