@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePlaylistActions } from '../hooks/usePlaylistActions';
 import { useShare } from '../hooks/useShare';
 import { PlaylistPicker } from '../components/PlaylistPicker';
+import { SessionPickerView } from '../components/SessionPickerView';
 import { SessionHeader } from '../components/SessionHeader';
 import { SearchResults } from '../components/SearchResults';
 import { PlaylistView } from '../components/PlaylistView';
@@ -21,6 +22,11 @@ import { setHostToken, clearHostToken, apiFetch } from '../config';
 
 export function SessionPage() {
   const { sessionId } = useParams();
+  
+  // If no sessionId, show the picker view
+  if (!sessionId) {
+    return <SessionPickerView />;
+  }
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -224,7 +230,7 @@ export function SessionPage() {
         searchQuery={searchQuery}
         searchDisabled={playlistDeleted || !!sessionExpired}
         onRefresh={playlist.refreshPlaylist}
-        onChangeSession={() => navigate('/host')}
+        onChangeSession={() => navigate('/session')}
         onShare={share.openShareModal}
         onEndSession={() => setShowEndSessionModal(true)}
         onLogout={() => setShowLogoutModal(true)}
@@ -258,7 +264,7 @@ export function SessionPage() {
                 sessionExpired={sessionExpired}
                 onSelectNewPlaylist={() => {
                   clearUnavailableFlag();
-                  navigate('/host');
+                  navigate('/session');
                 }}
               />
             </motion.div>

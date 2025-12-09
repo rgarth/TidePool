@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from '../components/Icons';
-import { PageSpinner } from '../components/Spinner';
+import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from './Icons';
+import { PageSpinner } from './Spinner';
 import { API_URL, apiFetch, clearHostToken } from '../config';
 
 interface ExistingSession {
@@ -16,7 +16,7 @@ interface ExistingSession {
   createdAt: string;
 }
 
-export function HostPage() {
+export function SessionPickerView() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAuthenticated, isChecking, hostToken, username } = useAuth();
@@ -70,16 +70,14 @@ export function HostPage() {
     clearHostToken();
     setExistingSessions([]);
     setShowDisconnectModal(false);
-    window.location.reload(); // Refresh to update auth state
+    window.location.reload();
   };
 
-  // End a session
   const handleEndSession = async () => {
     if (!sessionToEnd) return;
     setIsEndingSession(true);
     try {
       await apiFetch(`/api/sessions/${sessionToEnd.id}`, { method: 'DELETE' });
-      // Remove from local state
       setExistingSessions(prev => prev.filter(s => s.id !== sessionToEnd.id));
     } catch (err) {
       console.error('Failed to end session:', err);
@@ -89,7 +87,6 @@ export function HostPage() {
     }
   };
 
-  // Session hub URL
   const hubUrl = username ? `${window.location.origin}/u/${username}` : null;
   
   const copyHubUrl = async () => {
@@ -143,14 +140,12 @@ export function HostPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Back button */}
           <button onClick={() => navigate('/')} className="btn btn-ghost mb-xl">
             <BackArrowIcon size={20} />
             Back
           </button>
 
           <div className="card text-center">
-            {/* Tidal icon */}
             <div className="flex justify-center mb-lg">
               <div className="flex items-center justify-center" style={{
                 width: 64,
@@ -171,7 +166,7 @@ export function HostPage() {
             </p>
 
             {/* Connection Status */}
-            <div className={`card card-compact mb-lg`} style={{
+            <div className="card card-compact mb-lg" style={{
               background: isAuthenticated ? 'rgba(0, 180, 160, 0.1)' : 'rgba(255, 255, 255, 0.03)',
               borderColor: isAuthenticated ? 'rgba(0, 180, 160, 0.3)' : 'rgba(255, 255, 255, 0.1)',
             }}>
@@ -214,7 +209,7 @@ export function HostPage() {
               )}
             </div>
 
-            {/* Existing Sessions - only show if authenticated and has sessions */}
+            {/* Existing Sessions */}
             {isAuthenticated && existingSessions.length > 0 && (
               <div className="mb-lg">
                 <p className="text-secondary text-sm mb-sm" style={{ textAlign: 'left' }}>
@@ -222,19 +217,14 @@ export function HostPage() {
                 </p>
                 <div className="flex flex-col gap-sm">
                   {existingSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="session-list-item"
-                    >
+                    <div key={session.id} className="session-list-item">
                       <button
                         className="session-list-item-main"
                         onClick={() => handleResumeSession(session.id)}
                       >
                         <ReloadIcon size={18} style={{ flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="truncate text-medium">
-                            {session.name}
-                          </div>
+                          <div className="truncate text-medium">{session.name}</div>
                           <div className="text-muted text-xs" style={{ marginTop: 2 }}>
                             Code: {session.id} · {session.trackCount} tracks
                           </div>
@@ -254,7 +244,6 @@ export function HostPage() {
                   ))}
                 </div>
                 
-                {/* Divider */}
                 <div className="flex items-center gap-md mt-lg">
                   <div className="flex-1" style={{ height: 1, background: 'var(--bg-elevated)' }} />
                   <span className="text-muted text-sm">or</span>
@@ -288,15 +277,9 @@ export function HostPage() {
                     style={{ minWidth: 80 }}
                   >
                     {hubCopied ? (
-                      <>
-                        <CheckIcon size={16} />
-                        Copied
-                      </>
+                      <><CheckIcon size={16} /> Copied</>
                     ) : (
-                      <>
-                        <CopyIcon size={16} />
-                        Copy
-                      </>
+                      <><CopyIcon size={16} /> Copy</>
                     )}
                   </button>
                 </div>
@@ -311,15 +294,9 @@ export function HostPage() {
               onClick={() => handleCreateNew()}
             >
               {isAuthenticated ? (
-                <>
-                  <PlayCircleIcon size={20} />
-                  Start New Session
-                </>
+                <><PlayCircleIcon size={20} /> Start New Session</>
               ) : (
-                <>
-                  <TidalLogo size={20} />
-                  Connect Tidal Account
-                </>
+                <><TidalLogo size={20} /> Connect Tidal Account</>
               )}
             </button>
           </div>
@@ -333,7 +310,7 @@ export function HostPage() {
         </motion.div>
       </div>
 
-      {/* Disconnect confirmation modal */}
+      {/* Modals */}
       <AnimatePresence>
         {showDisconnectModal && (
           <motion.div
@@ -356,9 +333,7 @@ export function HostPage() {
               
               <div className="flex justify-center mb-lg">
                 <div className="flex items-center justify-center" style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
+                  width: 56, height: 56, borderRadius: '50%',
                   background: 'rgba(239, 68, 68, 0.15)',
                 }}>
                   <WarningIcon size={28} color="var(--text-error)" />
@@ -366,28 +341,18 @@ export function HostPage() {
               </div>
               
               <h3 className="text-center mb-sm">Disconnect from Tidal?</h3>
-              
               <p className="text-secondary text-center mb-lg">
-                All your active TidePool sessions will end immediately. Participants will no longer be able to add songs.
+                All your active TidePool sessions will end immediately.
               </p>
-              
               <p className="text-muted text-sm text-center mb-xl">
-                Your Tidal playlists will remain in your library — only the TidePool sessions end.
+                Your Tidal playlists will remain in your library.
               </p>
               
               <div className="flex gap-sm">
-                <button 
-                  className="btn btn-secondary flex-1" 
-                  onClick={() => setShowDisconnectModal(false)}
-                  disabled={isDisconnecting}
-                >
+                <button className="btn btn-secondary flex-1" onClick={() => setShowDisconnectModal(false)} disabled={isDisconnecting}>
                   Cancel
                 </button>
-                <button 
-                  className="btn btn-danger flex-1" 
-                  onClick={handleDisconnect}
-                  disabled={isDisconnecting}
-                >
+                <button className="btn btn-danger flex-1" onClick={handleDisconnect} disabled={isDisconnecting}>
                   {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
@@ -395,7 +360,6 @@ export function HostPage() {
           </motion.div>
         )}
 
-        {/* End session confirmation modal */}
         {sessionToEnd && (
           <motion.div
             className="modal-overlay"
@@ -417,9 +381,7 @@ export function HostPage() {
               
               <div className="flex justify-center mb-lg">
                 <div className="flex items-center justify-center" style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
+                  width: 56, height: 56, borderRadius: '50%',
                   background: 'rgba(239, 68, 68, 0.15)',
                 }}>
                   <WarningIcon size={28} color="var(--text-error)" />
@@ -427,29 +389,18 @@ export function HostPage() {
               </div>
               
               <h3 className="text-center mb-sm">End Session?</h3>
-              
               <p className="text-secondary text-center mb-lg">
-                This will end <strong>{sessionToEnd.name}</strong> ({sessionToEnd.id}). 
-                Participants will no longer be able to add songs.
+                This will end <strong>{sessionToEnd.name}</strong> ({sessionToEnd.id}).
               </p>
-              
               <p className="text-muted text-sm text-center mb-xl">
                 The Tidal playlist will remain in your library.
               </p>
               
               <div className="flex gap-sm">
-                <button 
-                  className="btn btn-secondary flex-1" 
-                  onClick={() => setSessionToEnd(null)}
-                  disabled={isEndingSession}
-                >
+                <button className="btn btn-secondary flex-1" onClick={() => setSessionToEnd(null)} disabled={isEndingSession}>
                   Cancel
                 </button>
-                <button 
-                  className="btn btn-danger flex-1" 
-                  onClick={handleEndSession}
-                  disabled={isEndingSession}
-                >
+                <button className="btn btn-danger flex-1" onClick={handleEndSession} disabled={isEndingSession}>
                   {isEndingSession ? 'Ending...' : 'End Session'}
                 </button>
               </div>
@@ -460,3 +411,4 @@ export function HostPage() {
     </div>
   );
 }
+
