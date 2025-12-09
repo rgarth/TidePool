@@ -25,11 +25,6 @@ export function SessionPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // If no sessionId, show the picker view
-  if (!sessionId) {
-    return <SessionPickerView />;
-  }
-  
   // Socket connection and session state
   const {
     isConnected,
@@ -44,8 +39,8 @@ export function SessionPage() {
     clearUnavailableFlag,
   } = useSocket();
 
-  // Search functionality
-  const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId);
+  // Search functionality - use empty string when no sessionId
+  const { searchQuery, setSearchQuery, searchResults, isSearching, clearSearch } = useSearch(sessionId || '');
   
   // UI state
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
@@ -194,6 +189,11 @@ export function SessionPage() {
       navigate('/', { replace: true });
     }
   }, [error, navigate]);
+
+  // If no sessionId, show the picker view (must be after all hooks)
+  if (!sessionId) {
+    return <SessionPickerView />;
+  }
 
   // Computed loading state
   const isLoadingPlaylist = isAwaitingSync || playlist.isLoading;
