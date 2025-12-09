@@ -212,8 +212,15 @@ router.delete('/:sessionId', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Session not found' });
   }
   
-  // Verify the requester is the host
-  if (session.hostToken !== hostToken) {
+  // Get userId from requester's token
+  const requesterData = hostToken ? hostTokens.get(hostToken) : null;
+  const sessionTokenData = session.hostToken ? hostTokens.get(session.hostToken) : null;
+  
+  // Verify the requester is the host (same userId, allowing cross-device deletion)
+  const isOwner = requesterData?.userId && sessionTokenData?.userId && 
+                  requesterData.userId === sessionTokenData.userId;
+  
+  if (!isOwner) {
     return res.status(403).json({ error: 'Only the host can end this session' });
   }
   
