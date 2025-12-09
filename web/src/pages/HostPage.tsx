@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon } from '../components/Icons';
+import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from '../components/Icons';
 import { PageSpinner } from '../components/Spinner';
 import { API_URL, apiFetch, clearHostToken } from '../config';
 
@@ -25,6 +25,8 @@ export function HostPage() {
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [hubCopied, setHubCopied] = useState(false);
+  const [sessionToEnd, setSessionToEnd] = useState<ExistingSession | null>(null);
+  const [isEndingSession, setIsEndingSession] = useState(false);
   
   // Hidden feature: ?resume=CODE allows reusing a session code after server restart
   const resumeCode = searchParams.get('resume');
@@ -69,6 +71,22 @@ export function HostPage() {
     setExistingSessions([]);
     setShowDisconnectModal(false);
     window.location.reload(); // Refresh to update auth state
+  };
+
+  // End a session
+  const handleEndSession = async () => {
+    if (!sessionToEnd) return;
+    setIsEndingSession(true);
+    try {
+      await apiFetch(`/api/sessions/${sessionToEnd.id}`, { method: 'DELETE' });
+      // Remove from local state
+      setExistingSessions(prev => prev.filter(s => s.id !== sessionToEnd.id));
+    } catch (err) {
+      console.error('Failed to end session:', err);
+    } finally {
+      setIsEndingSession(false);
+      setSessionToEnd(null);
+    }
   };
 
   // Session hub URL
@@ -204,26 +222,35 @@ export function HostPage() {
                 </p>
                 <div className="flex flex-col gap-sm">
                   {existingSessions.map((session) => (
-                    <button
+                    <div
                       key={session.id}
-                      className="btn btn-secondary btn-block"
-                      onClick={() => handleResumeSession(session.id)}
-                      style={{ 
-                        justifyContent: 'flex-start',
-                        textAlign: 'left',
-                        padding: 'var(--space-md)',
-                      }}
+                      className="session-list-item"
                     >
-                      <ReloadIcon size={18} style={{ flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="truncate text-medium">
-                          {session.name}
+                      <button
+                        className="session-list-item-main"
+                        onClick={() => handleResumeSession(session.id)}
+                      >
+                        <ReloadIcon size={18} style={{ flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="truncate text-medium">
+                            {session.name}
+                          </div>
+                          <div className="text-muted text-xs" style={{ marginTop: 2 }}>
+                            Code: {session.id} · {session.trackCount} tracks
+                          </div>
                         </div>
-                        <div className="text-muted text-xs" style={{ marginTop: 2 }}>
-                          Code: {session.id} · {session.trackCount} tracks
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        className="session-list-item-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSessionToEnd(session);
+                        }}
+                        title="End session"
+                      >
+                        <TrashIcon size={16} />
+                      </button>
+                    </div>
                   ))}
                 </div>
                 
@@ -362,6 +389,68 @@ export function HostPage() {
                   disabled={isDisconnecting}
                 >
                   {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* End session confirmation modal */}
+        {sessionToEnd && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSessionToEnd(null)}
+          >
+            <motion.div
+              className="modal modal-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button className="modal-close" onClick={() => setSessionToEnd(null)}>
+                <CloseIcon size={20} />
+              </button>
+              
+              <div className="flex justify-center mb-lg">
+                <div className="flex items-center justify-center" style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                }}>
+                  <WarningIcon size={28} color="var(--text-error)" />
+                </div>
+              </div>
+              
+              <h3 className="text-center mb-sm">End Session?</h3>
+              
+              <p className="text-secondary text-center mb-lg">
+                This will end <strong>{sessionToEnd.name}</strong> ({sessionToEnd.id}). 
+                Participants will no longer be able to add songs.
+              </p>
+              
+              <p className="text-muted text-sm text-center mb-xl">
+                The Tidal playlist will remain in your library.
+              </p>
+              
+              <div className="flex gap-sm">
+                <button 
+                  className="btn btn-secondary flex-1" 
+                  onClick={() => setSessionToEnd(null)}
+                  disabled={isEndingSession}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-danger flex-1" 
+                  onClick={handleEndSession}
+                  disabled={isEndingSession}
+                >
+                  {isEndingSession ? 'Ending...' : 'End Session'}
                 </button>
               </div>
             </motion.div>
