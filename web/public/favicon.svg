@@ -7,34 +7,34 @@
     </linearGradient>
   </defs>
   <rect width="100" height="100" rx="20" fill="url(#dark)"/>
-  <!-- Pixel art waves - 8 squares per row, centered -->
+  <!-- Pixel art waves - 8x8 squares, centered, 6px gap between rows -->
   <g fill="white">
-    <!-- Top wave: high, low, high, low, high, low, high, low -->
-    <rect x="10" y="15" width="10" height="10"/>
-    <rect x="20" y="25" width="10" height="10"/>
-    <rect x="30" y="15" width="10" height="10"/>
-    <rect x="40" y="25" width="10" height="10"/>
-    <rect x="50" y="15" width="10" height="10"/>
-    <rect x="60" y="25" width="10" height="10"/>
-    <rect x="70" y="15" width="10" height="10"/>
-    <rect x="80" y="25" width="10" height="10"/>
-    <!-- Middle wave -->
-    <rect x="10" y="40" width="10" height="10"/>
-    <rect x="20" y="50" width="10" height="10"/>
-    <rect x="30" y="40" width="10" height="10"/>
-    <rect x="40" y="50" width="10" height="10"/>
-    <rect x="50" y="40" width="10" height="10"/>
-    <rect x="60" y="50" width="10" height="10"/>
-    <rect x="70" y="40" width="10" height="10"/>
-    <rect x="80" y="50" width="10" height="10"/>
-    <!-- Bottom wave -->
-    <rect x="10" y="65" width="10" height="10"/>
-    <rect x="20" y="75" width="10" height="10"/>
-    <rect x="30" y="65" width="10" height="10"/>
-    <rect x="40" y="75" width="10" height="10"/>
-    <rect x="50" y="65" width="10" height="10"/>
-    <rect x="60" y="75" width="10" height="10"/>
-    <rect x="70" y="65" width="10" height="10"/>
-    <rect x="80" y="75" width="10" height="10"/>
+    <!-- Top wave (y=20 high, y=28 low) -->
+    <rect x="18" y="20" width="8" height="8"/>
+    <rect x="26" y="28" width="8" height="8"/>
+    <rect x="34" y="20" width="8" height="8"/>
+    <rect x="42" y="28" width="8" height="8"/>
+    <rect x="50" y="20" width="8" height="8"/>
+    <rect x="58" y="28" width="8" height="8"/>
+    <rect x="66" y="20" width="8" height="8"/>
+    <rect x="74" y="28" width="8" height="8"/>
+    <!-- Middle wave (y=42 high, y=50 low) - 6px gap -->
+    <rect x="18" y="42" width="8" height="8"/>
+    <rect x="26" y="50" width="8" height="8"/>
+    <rect x="34" y="42" width="8" height="8"/>
+    <rect x="42" y="50" width="8" height="8"/>
+    <rect x="50" y="42" width="8" height="8"/>
+    <rect x="58" y="50" width="8" height="8"/>
+    <rect x="66" y="42" width="8" height="8"/>
+    <rect x="74" y="50" width="8" height="8"/>
+    <!-- Bottom wave (y=64 high, y=72 low) - 6px gap -->
+    <rect x="18" y="64" width="8" height="8"/>
+    <rect x="26" y="72" width="8" height="8"/>
+    <rect x="34" y="64" width="8" height="8"/>
+    <rect x="42" y="72" width="8" height="8"/>
+    <rect x="50" y="64" width="8" height="8"/>
+    <rect x="58" y="72" width="8" height="8"/>
+    <rect x="66" y="64" width="8" height="8"/>
+    <rect x="74" y="72" width="8" height="8"/>
   </g>
 </svg>

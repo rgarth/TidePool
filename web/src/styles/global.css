@@ -635,6 +635,8 @@ a:hover {
   border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
+  transform: rotate(-2deg);
+  box-shadow: var(--shadow-sm);
 }
 
 .track-info {
@@ -679,6 +681,8 @@ a:hover {
   border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
+  transform: rotate(-2deg);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-result-info {
