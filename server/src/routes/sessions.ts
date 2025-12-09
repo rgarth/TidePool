@@ -77,12 +77,26 @@ router.post('/', (req: Request, res: Response) => {
   });
 });
 
-// Get host's existing sessions
+// Get host's existing sessions (aggregates across all devices/tokens for same user)
 router.get('/mine', (req: Request, res: Response) => {
   const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
   
   if (!hostToken) {
     return res.json({ sessions: [] });
+  }
+  
+  // Get userId from current token
+  const currentTokenData = hostTokens.get(hostToken);
+  if (!currentTokenData?.userId) {
+    return res.json({ sessions: [] });
+  }
+  
+  // Find ALL hostTokens for this user (cross-device support)
+  const userTokens: string[] = [];
+  for (const [token, data] of hostTokens.entries()) {
+    if (data.userId === currentTokenData.userId) {
+      userTokens.push(token);
+    }
   }
   
   const mySessions: Array<{
@@ -95,8 +109,9 @@ router.get('/mine', (req: Request, res: Response) => {
     createdAt: Date;
   }> = [];
   
+  // Find sessions matching ANY of this user's tokens
   sessions.forEach((session) => {
-    if (session.hostToken === hostToken) {
+    if (session.hostToken && userTokens.includes(session.hostToken)) {
       mySessions.push({
         id: session.id,
         name: session.name,
@@ -115,28 +130,29 @@ router.get('/mine', (req: Request, res: Response) => {
   res.json({ sessions: mySessions });
 });
 
-// Get public session list for a host (by username)
+// Get public session list for a host (by username, aggregates across all devices)
 router.get('/host/:username', (req: Request, res: Response) => {
   const { username } = req.params;
   const usernameLower = username.toLowerCase();
   
-  // Find the hostToken for this username
-  let hostToken: string | null = null;
+  // Find ALL hostTokens for this username (cross-device support)
+  const userTokens: string[] = [];
   let hostUsername: string | null = null;
   
   for (const [token, data] of hostTokens.entries()) {
     if (data.username?.toLowerCase() === usernameLower) {
-      hostToken = token;
-      hostUsername = data.username || null;
-      break;
+      userTokens.push(token);
+      if (!hostUsername) {
+        hostUsername = data.username || null;
+      }
     }
   }
   
-  if (!hostToken) {
+  if (userTokens.length === 0) {
     return res.status(404).json({ error: 'Host not found' });
   }
   
-  // Find all sessions for this host
+  // Find all sessions for ANY of this user's tokens
   const hostSessions: Array<{
     id: string;
     name: string;
@@ -144,7 +160,7 @@ router.get('/host/:username', (req: Request, res: Response) => {
   }> = [];
   
   sessions.forEach((session) => {
-    if (session.hostToken === hostToken) {
+    if (session.hostToken && userTokens.includes(session.hostToken)) {
       hostSessions.push({
         id: session.id,
         name: session.name,
