@@ -17,6 +17,7 @@ import {
 } from '../services/tokens.js';
 import { PendingAuth } from '../types/index.js';
 import { sessions } from './sessions.js';
+import { sanitizeDisplayName } from '../utils/sanitize.js';
 
 const router = Router();
 
@@ -166,7 +167,8 @@ router.get('/callback', async (req: Request, res: Response) => {
         const attrs = data.attributes || data;
         countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
         userId = data.id?.toString() || attrs.userId?.toString() || data.userId?.toString() || '';
-        username = attrs.username || '';
+        // Sanitize username from external API
+        username = sanitizeDisplayName(attrs.username, '', 50);
       }
     } catch (err) {
       console.warn('Failed to fetch user info, using defaults');
@@ -209,7 +211,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       const session = sessions.get(pending.sessionId.toUpperCase());
       if (session) {
         session.hostToken = finalHostToken;
-        session.hostName = username || 'Host';
+        session.hostName = sanitizeDisplayName(username, 'Host');
         console.log(`Stored hostToken in session ${pending.sessionId}`);
       }
     }

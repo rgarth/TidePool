@@ -5,6 +5,7 @@ import { Track } from '../types/index.js';
 import { sessions } from '../routes/sessions.js';
 import { pendingAuth } from '../routes/auth.js';
 import { hostTokens } from '../services/tokens.js';
+import { sanitizeDisplayName } from '../utils/sanitize.js';
 
 export function setupSocketHandlers(io: Server): void {
   io.on('connection', (socket: Socket) => {
@@ -25,6 +26,9 @@ export function setupSocketHandlers(io: Server): void {
       currentSessionId = session.id;
       socket.join(session.id);
       
+      // Sanitize display name
+      const safeDisplayName = sanitizeDisplayName(displayName, 'Guest');
+      
       // Check if this is the session owner (same hostToken - shared across all user's devices)
       const isSessionOwner = hostToken && session.hostToken === hostToken;
       
@@ -36,7 +40,7 @@ export function setupSocketHandlers(io: Server): void {
         if (!session.hostName && hostToken) {
           const tokens = hostTokens.get(hostToken);
           if (tokens?.username) {
-            session.hostName = tokens.username;
+            session.hostName = sanitizeDisplayName(tokens.username, 'Host');
             session.hostToken = hostToken; // Also ensure hostToken is set for guests
             console.log(`Retrieved hostName from stored token: ${tokens.username}`);
           }
@@ -44,7 +48,7 @@ export function setupSocketHandlers(io: Server): void {
       }
       
       // Use Tidal username for host if available, otherwise use provided displayName
-      const actualDisplayName = (asHost && session.hostName) ? session.hostName : displayName;
+      const actualDisplayName = (asHost && session.hostName) ? session.hostName : safeDisplayName;
       session.participants.set(socket.id, actualDisplayName);
       
       // Send current state to the joining client

@@ -18,6 +18,14 @@ export function JoinPage() {
     setSessionCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
   };
 
+  const handleNameChange = (value: string) => {
+    // Limit length and remove control characters
+    const sanitized = value
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
+      .slice(0, 50);
+    setName(sanitized);
+  };
+
   const handleJoinSession = async () => {
     if (!name.trim()) {
       setError('Please enter your name');
@@ -96,7 +104,8 @@ export function JoinPage() {
                   className="input"
                   placeholder="Enter your name..."
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  maxLength={50}
                   autoFocus={!urlSessionId}
                 />
               </div>

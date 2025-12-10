@@ -16,6 +16,7 @@ import {
   buildContributorDescription,
 } from '../services/tidal.js';
 import { sessions } from './sessions.js';
+import { sanitizeSessionName, sanitizeDescription } from '../utils/sanitize.js';
 
 const router = Router();
 
@@ -167,7 +168,8 @@ router.get('/playlists', async (req: Request, res: Response) => {
 
 // Create a new playlist
 router.post('/playlists', async (req: Request, res: Response) => {
-  const { name, description } = req.body;
+  const name = sanitizeSessionName(req.body.name, 'New Playlist');
+  const description = sanitizeDescription(req.body.description);
   
   const hostToken = getHostTokenFromRequest(req);
   
@@ -214,7 +216,9 @@ router.post('/playlists', async (req: Request, res: Response) => {
 // Update playlist name and/or description
 router.patch('/playlists/:playlistId', async (req: Request, res: Response) => {
   const { playlistId } = req.params;
-  const { name, userDescription, sessionId } = req.body;
+  const name = req.body.name ? sanitizeSessionName(req.body.name) : undefined;
+  const userDescription = sanitizeDescription(req.body.userDescription);
+  const { sessionId } = req.body;
   
   const hostToken = getHostTokenFromRequest(req);
   
