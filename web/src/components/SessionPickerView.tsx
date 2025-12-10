@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from './Icons';
 import { PageSpinner } from './Spinner';
 import { EndSessionModal } from './EndSessionModal';
-import { API_URL, apiFetch, clearHostToken } from '../config';
+import { API_URL, apiFetch, clearHostToken, setHostToken } from '../config';
 
 interface ExistingSession {
   id: string;
@@ -20,7 +20,15 @@ interface ExistingSession {
 export function SessionPickerView() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, isChecking, hostToken, username } = useAuth();
+  
+  // Check for auth callback params
+  const authSuccess = searchParams.get('auth') === 'success';
+  const urlToken = searchParams.get('token');
+  
+  // Delay auth check slightly if we just got a token from URL
+  const { isAuthenticated, isChecking, hostToken, username } = useAuth({
+    delayCheck: authSuccess && urlToken ? 100 : 0
+  });
   const [existingSessions, setExistingSessions] = useState<ExistingSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
@@ -31,6 +39,19 @@ export function SessionPickerView() {
   
   // Hidden feature: ?resume=CODE allows reusing a session code after server restart
   const resumeCode = searchParams.get('resume');
+  
+  // Extract and store token from URL (for cross-origin auth)
+  useEffect(() => {
+    if (authSuccess && urlToken) {
+      setHostToken(urlToken);
+      // Clean up URL
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('token');
+      newParams.delete('auth');
+      const newUrl = newParams.toString() ? `/session?${newParams.toString()}` : '/session';
+      navigate(newUrl, { replace: true });
+    }
+  }, [authSuccess, urlToken, navigate, searchParams]);
 
   // Fetch existing sessions when authenticated
   useEffect(() => {
@@ -102,6 +123,16 @@ export function SessionPickerView() {
   };
 
   const handleCreateNew = async (forceReauth = false) => {
+    // If not authenticated, just redirect to OAuth without creating a session first
+    // After OAuth, user will land back at /session and can see their existing sessions
+    if (!isAuthenticated || forceReauth) {
+      sessionStorage.setItem('userName', 'Host');
+      sessionStorage.setItem('isHost', 'true');
+      window.location.href = `${API_URL}/api/auth/login`;
+      return;
+    }
+    
+    // Already authenticated - create session and navigate
     try {
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
@@ -118,12 +149,7 @@ export function SessionPickerView() {
       
       sessionStorage.setItem('userName', 'Host');
       sessionStorage.setItem('isHost', 'true');
-      
-      if (isAuthenticated && !forceReauth) {
-        navigate(`/session/${data.sessionId}`);
-      } else {
-        window.location.href = `${API_URL}/api/auth/login?sessionId=${data.sessionId}`;
-      }
+      navigate(`/session/${data.sessionId}`);
     } catch (err) {
       console.error('Failed to create session:', err);
     }

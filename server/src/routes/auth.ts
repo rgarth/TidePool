@@ -64,10 +64,7 @@ router.get('/login', (req: Request, res: Response) => {
   }
   
   const { sessionId } = req.query;
-  
-  if (!sessionId || typeof sessionId !== 'string') {
-    return res.status(400).json({ error: 'Session ID required' });
-  }
+  const sessionIdStr = typeof sessionId === 'string' ? sessionId : undefined;
   
   if (!TIDAL_CLIENT_ID) {
     return res.status(500).json({ error: 'Tidal client not configured' });
@@ -84,8 +81,8 @@ router.get('/login', (req: Request, res: Response) => {
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = nanoid(16);
   
-  // Store for callback
-  pendingAuth.set(state, { codeVerifier, sessionId, hostToken });
+  // Store for callback (sessionId can be undefined for pre-auth login)
+  pendingAuth.set(state, { codeVerifier, sessionId: sessionIdStr || '', hostToken });
   
   // Build authorization URL
   const authUrl = new URL(`${TIDAL_AUTH_BASE}/authorize`);
@@ -97,7 +94,7 @@ router.get('/login', (req: Request, res: Response) => {
   authUrl.searchParams.set('code_challenge', codeChallenge);
   authUrl.searchParams.set('code_challenge_method', 'S256');
   
-  console.log(`Starting OAuth flow for session ${sessionId} (host: ${hostToken.substring(0, 8)}...)`);
+  console.log(`Starting OAuth flow${sessionIdStr ? ` for session ${sessionIdStr}` : ''} (host: ${hostToken.substring(0, 8)}...)`);
   res.redirect(authUrl.toString());
 });
 
@@ -188,12 +185,14 @@ router.get('/callback', async (req: Request, res: Response) => {
 
     console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... (${username}) for session ${pending.sessionId}`);
     
-    // Store hostToken in session so guests can use it
-    const session = sessions.get(pending.sessionId.toUpperCase());
-    if (session) {
-      session.hostToken = pending.hostToken;
-      session.hostName = username || 'Host';
-      console.log(`Stored hostToken in session ${pending.sessionId}`);
+    // Store hostToken in session so guests can use it (if session exists)
+    if (pending.sessionId) {
+      const session = sessions.get(pending.sessionId.toUpperCase());
+      if (session) {
+        session.hostToken = pending.hostToken;
+        session.hostName = username || 'Host';
+        console.log(`Stored hostToken in session ${pending.sessionId}`);
+      }
     }
     
     // Set persistent cookie (still useful for same-origin scenarios)
@@ -204,8 +203,14 @@ router.get('/callback', async (req: Request, res: Response) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
     
-    // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
-    res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${pending.hostToken}`);
+    // Redirect based on whether there was a sessionId
+    if (pending.sessionId) {
+      // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
+      res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${pending.hostToken}`);
+    } else {
+      // No session - redirect to picker to show existing sessions
+      res.redirect(`${CLIENT_URL}/session?auth=success&token=${pending.hostToken}`);
+    }
     
   } catch (err) {
     console.error('OAuth callback error:', err);
