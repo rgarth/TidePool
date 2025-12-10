@@ -25,22 +25,8 @@ export function setupSocketHandlers(io: Server): void {
       currentSessionId = session.id;
       socket.join(session.id);
       
-      // Check if this user is the session owner (by userId)
-      let isSessionOwner = false;
-      if (hostToken) {
-        const newTokenData = hostTokens.get(hostToken);
-        const sessionTokenData = session.hostToken ? hostTokens.get(session.hostToken) : null;
-        
-        if (newTokenData?.userId && sessionTokenData?.userId && 
-            newTokenData.userId === sessionTokenData.userId) {
-          isSessionOwner = true;
-          // Update session's hostToken to new token (for cross-device support)
-          if (session.hostToken !== hostToken) {
-            console.log(`Updating session ${session.id} hostToken for same user (new device)`);
-            session.hostToken = hostToken;
-          }
-        }
-      }
+      // Check if this is the session owner (same hostToken - shared across all user's devices)
+      const isSessionOwner = hostToken && session.hostToken === hostToken;
       
       if (asHost && (!session.hostId || isSessionOwner)) {
         session.hostId = socket.id;

@@ -172,8 +172,21 @@ router.get('/callback', async (req: Request, res: Response) => {
       console.warn('Failed to fetch user info, using defaults');
     }
 
-    // Store tokens
-    hostTokens.set(pending.hostToken, {
+    // Check if this user already has a hostToken (from another device)
+    // If so, reuse it so all devices share the same token
+    let finalHostToken = pending.hostToken;
+    if (userId) {
+      for (const [existingToken, data] of hostTokens.entries()) {
+        if (data.userId === userId) {
+          console.log(`Found existing hostToken for user ${userId}, reusing it`);
+          finalHostToken = existingToken;
+          break;
+        }
+      }
+    }
+
+    // Store/update tokens (reusing existing token if found)
+    hostTokens.set(finalHostToken, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -181,22 +194,28 @@ router.get('/callback', async (req: Request, res: Response) => {
       userId,
       username,
     });
+    
+    // Clean up the pending hostToken if we're using a different one
+    if (finalHostToken !== pending.hostToken && hostTokens.has(pending.hostToken)) {
+      hostTokens.delete(pending.hostToken);
+    }
+    
     saveTokens(hostTokens);
 
-    console.log(`Authenticated host ${pending.hostToken.substring(0, 8)}... (${username}) for session ${pending.sessionId}`);
+    console.log(`Authenticated host ${finalHostToken.substring(0, 8)}... (${username})${pending.sessionId ? ` for session ${pending.sessionId}` : ''}`);
     
     // Store hostToken in session so guests can use it (if session exists)
     if (pending.sessionId) {
       const session = sessions.get(pending.sessionId.toUpperCase());
       if (session) {
-        session.hostToken = pending.hostToken;
+        session.hostToken = finalHostToken;
         session.hostName = username || 'Host';
         console.log(`Stored hostToken in session ${pending.sessionId}`);
       }
     }
     
     // Set persistent cookie (still useful for same-origin scenarios)
-    res.cookie('tidepool_host', pending.hostToken, {
+    res.cookie('tidepool_host', finalHostToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
@@ -206,10 +225,10 @@ router.get('/callback', async (req: Request, res: Response) => {
     // Redirect based on whether there was a sessionId
     if (pending.sessionId) {
       // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
-      res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${pending.hostToken}`);
+      res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${finalHostToken}`);
     } else {
       // No session - redirect to picker to show existing sessions
-      res.redirect(`${CLIENT_URL}/session?auth=success&token=${pending.hostToken}`);
+      res.redirect(`${CLIENT_URL}/session?auth=success&token=${finalHostToken}`);
     }
     
   } catch (err) {
