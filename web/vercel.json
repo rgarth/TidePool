@@ -4,6 +4,7 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/va/script.js", "destination": "/_vercel/insights/script.js" },
+    { "source": "/va/view", "destination": "/_vercel/insights/view" },
     { "source": "/va/event", "destination": "/_vercel/insights/event" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
