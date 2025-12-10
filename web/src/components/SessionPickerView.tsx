@@ -41,17 +41,23 @@ export function SessionPickerView() {
   const resumeCode = searchParams.get('resume');
   
   // Extract and store token from URL (for cross-origin auth)
+  // Save token immediately, but wait for auth check to complete before cleaning URL
   useEffect(() => {
     if (authSuccess && urlToken) {
       setHostToken(urlToken);
-      // Clean up URL
+    }
+  }, [authSuccess, urlToken]);
+  
+  // Clean up URL after auth check completes (to avoid race condition)
+  useEffect(() => {
+    if (authSuccess && !isChecking && isAuthenticated) {
       const newParams = new URLSearchParams(searchParams);
       newParams.delete('token');
       newParams.delete('auth');
       const newUrl = newParams.toString() ? `/session?${newParams.toString()}` : '/session';
       navigate(newUrl, { replace: true });
     }
-  }, [authSuccess, urlToken, navigate, searchParams]);
+  }, [authSuccess, isChecking, isAuthenticated, navigate, searchParams]);
 
   // Fetch existing sessions when authenticated
   useEffect(() => {
