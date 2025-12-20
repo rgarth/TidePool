@@ -24,6 +24,7 @@ TidePool lets you build playlists together. The host creates a session, everyone
 
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Node.js + Express + Socket.io
+- **Database**: Redis/Valkey for session & token persistence
 - **Styling**: Custom CSS with ocean-themed design
 - **Real-time**: WebSocket for instant updates
 
@@ -33,6 +34,7 @@ TidePool lets you build playlists together. The host creates a session, everyone
 
 - Node.js 18+
 - A Tidal account (Premium required for full functionality)
+- Redis/Valkey instance (for session persistence)
 
 ### Tidal API Setup
 
@@ -52,8 +54,13 @@ TidePool lets you build playlists together. The host creates a session, everyone
 Create `server/.env`:
 
 ```env
+# Tidal OAuth credentials (from developer.tidal.com)
 TIDAL_CLIENT_ID="your_client_id"
 TIDAL_CLIENT_SECRET="your_client_secret"
+
+# Redis/Valkey connection URL (required)
+REDIS_URL="redis://localhost:6379"
+# For TLS: REDIS_URL="rediss://user:password@host:port"
 
 # For local development:
 REDIRECT_URI="http://localhost:3001/api/auth/callback"
@@ -107,6 +114,7 @@ Open http://localhost:5173 in your browser.
 4. Add environment variables:
    - `TIDAL_CLIENT_ID`
    - `TIDAL_CLIENT_SECRET`
+   - `REDIS_URL` (your Redis/Valkey connection string)
    - `FRONTEND_URL` (your Vercel URL, e.g., `https://tidepool.vercel.app`)
    - `NODE_ENV=production`
 5. Update Tidal Developer Portal with your Render callback URL:

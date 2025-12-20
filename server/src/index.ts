@@ -17,6 +17,9 @@ if (process.env.NODE_ENV !== 'production') {
 // Import configuration
 import { CLIENT_URL } from './services/tokens.js';
 
+// Import Valkey
+import { initRedis, getAllSessions } from './services/valkey.js';
+
 // Import routes
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/sessions.js';
@@ -25,51 +28,66 @@ import tidalRoutes, { setSocketIO } from './routes/tidal.js';
 // Import socket handlers
 import { setupSocketHandlers } from './socket/handlers.js';
 
-// Initialize Express app
-const app = express();
-const httpServer = createServer(app);
+async function main() {
+  // Initialize Redis/Valkey first
+  console.log('Connecting to Valkey/Redis...');
+  await initRedis();
 
-// Initialize Socket.io
-const io = new Server(httpServer, {
-  cors: {
+  // Initialize Express app
+  const app = express();
+  const httpServer = createServer(app);
+
+  // Initialize Socket.io
+  const io = new Server(httpServer, {
+    cors: {
+      origin: CLIENT_URL,
+      methods: ['GET', 'POST'],
+    },
+  });
+
+  // Pass Socket.io to tidal routes
+  setSocketIO(io);
+
+  // Middleware
+  app.use(cors({
     origin: CLIENT_URL,
-    methods: ['GET', 'POST'],
-  },
-});
+    credentials: true,
+  }));
+  app.use(express.json());
+  app.use(cookieParser());
 
-// Pass Socket.io to tidal routes
-setSocketIO(io);
+  // Health check
+  app.get('/api/health', async (req, res) => {
+    try {
+      const sessions = await getAllSessions();
+      res.json({ status: 'ok', sessions: sessions.length });
+    } catch (err) {
+      res.status(500).json({ status: 'error', message: 'Redis unavailable' });
+    }
+  });
 
-// Middleware
-app.use(cors({
-  origin: CLIENT_URL,
-  credentials: true,
-}));
-app.use(express.json());
-app.use(cookieParser());
+  // Mount routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/sessions', sessionRoutes);
+  app.use('/api/tidal', tidalRoutes);
 
-// Health check
-app.get('/api/health', async (req, res) => {
-  const { sessions } = await import('./routes/sessions.js');
-  res.json({ status: 'ok', sessions: sessions.size });
-});
+  // Setup WebSocket handlers
+  setupSocketHandlers(io);
 
-// Mount routes
-app.use('/api/auth', authRoutes);
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/tidal', tidalRoutes);
+  // Start server
+  const PORT = process.env.PORT || 3001;
 
-// Setup WebSocket handlers
-setupSocketHandlers(io);
-
-// Start server
-const PORT = process.env.PORT || 3001;
-
-httpServer.listen(PORT, () => {
-  console.log(`
+  httpServer.listen(PORT, () => {
+    console.log(`
 🌊 TidePool Server
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Server running on http://localhost:${PORT}
 WebSocket ready for connections
-  `);
+    `);
+  });
+}
+
+main().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

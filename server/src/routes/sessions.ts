@@ -1,12 +1,9 @@
 // Session management routes
 import { Router, Request, Response } from 'express';
-import { Session } from '../types/index.js';
-import { CLIENT_URL, hostTokens } from '../services/tokens.js';
+import { CLIENT_URL, getHostToken, getTokensForUser } from '../services/tokens.js';
+import * as valkey from '../services/valkey.js';
 
 const router = Router();
-
-// In-memory session storage (will need Redis for production persistence)
-export const sessions = new Map<string, Session>();
 
 // Generate a short, easy-to-type session code
 function generateSessionCode(): string {
@@ -37,206 +34,209 @@ function generateRandomSessionName(): string {
   return `${adj} ${noun}`;
 }
 
-// Create a new session (requires playlist info - sessions without playlists are not created)
-router.post('/', (req: Request, res: Response) => {
-  const { resumeCode, tidalPlaylistId, tidalPlaylistUrl, playlistName, hostToken: bodyHostToken } = req.body;
-  
-  // Playlist info is required
-  if (!tidalPlaylistId || !tidalPlaylistUrl) {
-    return res.status(400).json({ error: 'Playlist info required to create session' });
-  }
-  
-  // Get host token from header, cookie, or body
-  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host || bodyHostToken;
-  
-  // Allow resuming with a specific code (hidden feature for server restarts)
-  let sessionId: string;
-  if (resumeCode && typeof resumeCode === 'string') {
-    const cleanCode = resumeCode.toUpperCase().trim();
-    // Validate format (6 alphanumeric chars) and check availability
-    if (/^[A-Z0-9]{6}$/.test(cleanCode) && !sessions.has(cleanCode)) {
-      sessionId = cleanCode;
-      console.log(`Resuming session with code: ${sessionId}`);
+// Create a new session (requires playlist info)
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { resumeCode, tidalPlaylistId, tidalPlaylistUrl, playlistName, hostToken: bodyHostToken } = req.body;
+    
+    // Playlist info is required
+    if (!tidalPlaylistId || !tidalPlaylistUrl) {
+      return res.status(400).json({ error: 'Playlist info required to create session' });
+    }
+    
+    // Get host token from header, cookie, or body
+    const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host || bodyHostToken;
+    
+    // Generate session ID
+    let sessionId: string;
+    if (resumeCode && typeof resumeCode === 'string') {
+      const cleanCode = resumeCode.toUpperCase().trim();
+      const existing = await valkey.getSession(cleanCode);
+      if (/^[A-Z0-9]{6}$/.test(cleanCode) && !existing) {
+        sessionId = cleanCode;
+        console.log(`Resuming session with code: ${sessionId}`);
+      } else {
+        sessionId = generateSessionCode();
+        console.log(`Requested code ${cleanCode} unavailable, generated: ${sessionId}`);
+      }
     } else {
       sessionId = generateSessionCode();
-      console.log(`Requested code ${cleanCode} unavailable, generated: ${sessionId}`);
     }
-  } else {
-    sessionId = generateSessionCode();
+    
+    const sessionName = playlistName?.trim() || generateRandomSessionName();
+    
+    const session: valkey.StoredSession = {
+      id: sessionId,
+      hostId: '',
+      hostToken: hostToken || undefined,
+      name: sessionName,
+      tracks: [],
+      createdAt: new Date().toISOString(),
+      tidalPlaylistId,
+      tidalPlaylistUrl,
+    };
+    
+    await valkey.setSession(sessionId, session);
+    console.log(`Session ${sessionId} created with playlist ${tidalPlaylistId} (${sessionName})`);
+    
+    res.json({
+      sessionId,
+      name: session.name,
+      joinUrl: `${CLIENT_URL}/join/${sessionId}`,
+    });
+  } catch (err) {
+    console.error('Failed to create session:', err);
+    res.status(500).json({ error: 'Failed to create session' });
   }
-  
-  const sessionName = playlistName?.trim() || generateRandomSessionName();
-  
-  const session: Session = {
-    id: sessionId,
-    hostId: '',
-    hostToken: hostToken || undefined,
-    name: sessionName,
-    tracks: [],
-    createdAt: new Date(),
-    participants: new Map(),
-    tidalPlaylistId,
-    tidalPlaylistUrl,
-  };
-  
-  sessions.set(sessionId, session);
-  console.log(`Session ${sessionId} created with playlist ${tidalPlaylistId} (${sessionName})`);
-  
-  res.json({
-    sessionId,
-    name: session.name,
-    joinUrl: `${CLIENT_URL}/join/${sessionId}`,
-  });
 });
 
-// Get host's existing sessions (aggregates across all devices/tokens for same user)
-router.get('/mine', (req: Request, res: Response) => {
-  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
-  
-  if (!hostToken) {
-    return res.json({ sessions: [] });
-  }
-  
-  // Get userId from current token
-  const currentTokenData = hostTokens.get(hostToken);
-  if (!currentTokenData?.userId) {
-    return res.json({ sessions: [] });
-  }
-  
-  // Find ALL hostTokens for this user (cross-device support)
-  const userTokens: string[] = [];
-  for (const [token, data] of hostTokens.entries()) {
-    if (data.userId === currentTokenData.userId) {
-      userTokens.push(token);
+// Get host's existing sessions
+router.get('/mine', async (req: Request, res: Response) => {
+  try {
+    const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
+    
+    if (!hostToken) {
+      return res.json({ sessions: [] });
     }
-  }
-  
-  const mySessions: Array<{
-    id: string;
-    name: string;
-    playlistName?: string;
-    playlistId?: string;
-    trackCount: number;
-    participantCount: number;
-    createdAt: Date;
-  }> = [];
-  
-  // Find sessions matching ANY of this user's tokens
-  // Only include sessions that have a playlist linked (filter out incomplete sessions)
-  sessions.forEach((session) => {
-    if (session.hostToken && userTokens.includes(session.hostToken) && session.tidalPlaylistId) {
-      mySessions.push({
+    
+    // Get userId from current token
+    const currentTokenData = await getHostToken(hostToken);
+    if (!currentTokenData?.userId) {
+      return res.json({ sessions: [] });
+    }
+    
+    // Find ALL hostTokens for this user (cross-device support)
+    const userTokens = await getTokensForUser(currentTokenData.userId);
+    
+    // Get all sessions and filter
+    const allSessions = await valkey.getAllSessions();
+    const mySessions = allSessions
+      .filter(session => 
+        session.hostToken && 
+        userTokens.includes(session.hostToken) && 
+        session.tidalPlaylistId
+      )
+      .map(session => ({
         id: session.id,
         name: session.name,
         playlistName: session.name,
         playlistId: session.tidalPlaylistId,
         trackCount: session.tracks.length,
-        participantCount: session.participants.size,
+        participantCount: 0, // Can't track this in Redis easily
         createdAt: session.createdAt,
-      });
-    }
-  });
-  
-  // Sort by most recent first
-  mySessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  
-  res.json({ sessions: mySessions });
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    res.json({ sessions: mySessions });
+  } catch (err) {
+    console.error('Failed to get sessions:', err);
+    res.status(500).json({ error: 'Failed to get sessions' });
+  }
 });
 
-// Get public session list for a host (by username, aggregates across all devices)
-router.get('/host/:username', (req: Request, res: Response) => {
-  const { username } = req.params;
-  const usernameLower = username.toLowerCase();
-  
-  // Find ALL hostTokens for this username (cross-device support)
-  const userTokens: string[] = [];
-  let hostUsername: string | null = null;
-  
-  for (const [token, data] of hostTokens.entries()) {
-    if (data.username?.toLowerCase() === usernameLower) {
-      userTokens.push(token);
-      if (!hostUsername) {
-        hostUsername = data.username || null;
+// Get public session list for a host (by username)
+router.get('/host/:username', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+    const usernameLower = username.toLowerCase();
+    
+    // Get all sessions and find ones matching this username
+    const allSessions = await valkey.getAllSessions();
+    const matchingSessions: Array<{ session: valkey.StoredSession; username: string }> = [];
+    
+    for (const session of allSessions) {
+      if (session.hostToken && session.tidalPlaylistId) {
+        const tokenData = await getHostToken(session.hostToken);
+        if (tokenData?.username?.toLowerCase() === usernameLower) {
+          matchingSessions.push({ session, username: tokenData.username });
+        }
       }
     }
-  }
-  
-  if (userTokens.length === 0) {
-    return res.status(404).json({ error: 'Host not found' });
-  }
-  
-  // Find all sessions for ANY of this user's tokens
-  // Only include sessions that have a playlist linked (filter out incomplete sessions)
-  const hostSessions: Array<{
-    id: string;
-    name: string;
-    trackCount: number;
-  }> = [];
-  
-  sessions.forEach((session) => {
-    if (session.hostToken && userTokens.includes(session.hostToken) && session.tidalPlaylistId) {
-      hostSessions.push({
+    
+    if (matchingSessions.length === 0) {
+      return res.status(404).json({ error: 'Host not found' });
+    }
+    
+    const hostSessions = matchingSessions
+      .map(({ session }) => ({
         id: session.id,
         name: session.name,
         trackCount: session.tracks.length,
+      }))
+      .sort((a, b) => {
+        const sessionA = allSessions.find(s => s.id === a.id);
+        const sessionB = allSessions.find(s => s.id === b.id);
+        if (!sessionA || !sessionB) return 0;
+        return new Date(sessionB.createdAt).getTime() - new Date(sessionA.createdAt).getTime();
       });
-    }
-  });
-  
-  // Sort by most recent first
-  hostSessions.sort((a, b) => {
-    const sessionA = sessions.get(a.id);
-    const sessionB = sessions.get(b.id);
-    if (!sessionA || !sessionB) return 0;
-    return new Date(sessionB.createdAt).getTime() - new Date(sessionA.createdAt).getTime();
-  });
-  
-  res.json({
-    host: {
-      username: hostUsername,
-    },
-    sessions: hostSessions,
-  });
+    
+    res.json({
+      host: {
+        username: matchingSessions[0].username,
+      },
+      sessions: hostSessions,
+    });
+  } catch (err) {
+    console.error('Failed to get host sessions:', err);
+    res.status(500).json({ error: 'Failed to get host sessions' });
+  }
 });
 
 // Get session details
-router.get('/:sessionId', (req: Request, res: Response) => {
-  const session = sessions.get(req.params.sessionId.toUpperCase());
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+router.get('/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const session = await valkey.getSession(req.params.sessionId.toUpperCase());
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    res.json({
+      id: session.id,
+      name: session.name,
+      tracks: session.tracks,
+      tidalPlaylistId: session.tidalPlaylistId,
+      tidalPlaylistUrl: session.tidalPlaylistUrl,
+      participantCount: 0,
+    });
+  } catch (err) {
+    console.error('Failed to get session:', err);
+    res.status(500).json({ error: 'Failed to get session' });
   }
-  
-  res.json({
-    id: session.id,
-    name: session.name,
-    tracks: session.tracks,
-    tidalPlaylistId: session.tidalPlaylistId,
-    tidalPlaylistUrl: session.tidalPlaylistUrl,
-    participantCount: session.participants.size,
-  });
 });
 
 // End/delete a session (host only)
-router.delete('/:sessionId', (req: Request, res: Response) => {
-  const sessionId = req.params.sessionId.toUpperCase();
-  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
-  
-  const session = sessions.get(sessionId);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+router.delete('/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.params.sessionId.toUpperCase();
+    const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host;
+    
+    const session = await valkey.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    // Verify the requester is the host
+    if (session.hostToken !== hostToken) {
+      // Check if same user via different token
+      if (hostToken && session.hostToken) {
+        const requesterToken = await getHostToken(hostToken);
+        const sessionToken = await getHostToken(session.hostToken);
+        if (!requesterToken?.userId || requesterToken.userId !== sessionToken?.userId) {
+          return res.status(403).json({ error: 'Only the host can end this session' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Only the host can end this session' });
+      }
+    }
+    
+    await valkey.deleteSession(sessionId);
+    console.log(`Session ${sessionId} ended by host`);
+    
+    res.json({ success: true, message: 'Session ended' });
+  } catch (err) {
+    console.error('Failed to delete session:', err);
+    res.status(500).json({ error: 'Failed to delete session' });
   }
-  
-  // Verify the requester is the host (same hostToken - shared across all user's devices)
-  if (session.hostToken !== hostToken) {
-    return res.status(403).json({ error: 'Only the host can end this session' });
-  }
-  
-  // Delete the session
-  sessions.delete(sessionId);
-  console.log(`Session ${sessionId} ended by host`);
-  
-  res.json({ success: true, message: 'Session ended' });
 });
 
 export default router;
-

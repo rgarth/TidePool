@@ -2,7 +2,8 @@
 import { Router, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import { Server } from 'socket.io';
-import { getHostAccessToken, hostTokens, getHostTokenFromRequest, TokenExpiredError } from '../services/tokens.js';
+import { getHostAccessToken, getHostTokenFromRequest, TokenExpiredError } from '../services/tokens.js';
+import * as valkey from '../services/valkey.js';
 import {
   searchTidal,
   createPlaylist,
@@ -10,12 +11,10 @@ import {
   removeTracksFromPlaylist,
   getPlaylistWithFullTracks,
   getPlaylistInfo,
-  parseTrackData,
   updatePlaylistDescription,
   updatePlaylist,
   buildContributorDescription,
 } from '../services/tidal.js';
-import { sessions } from './sessions.js';
 import { sanitizeSessionName, sanitizeDescription } from '../utils/sanitize.js';
 
 const router = Router();
@@ -28,11 +27,11 @@ export function setSocketIO(socketIO: Server) {
 }
 
 // Helper to emit session_expired to all clients when OAuth expires
-function emitSessionExpired(hostToken: string) {
-  // Find any sessions using this hostToken
-  for (const [sessionId, session] of sessions.entries()) {
+async function emitSessionExpired(hostToken: string) {
+  const allSessions = await valkey.getAllSessions();
+  for (const session of allSessions) {
     if (session.hostToken === hostToken) {
-      console.log(`OAuth expired for session ${sessionId}, notifying all clients`);
+      console.log(`OAuth expired for session ${session.id}, notifying all clients`);
       io.to(session.id).emit('session_expired', {
         message: 'This session has expired because the Tidal authorization is no longer valid.',
         reason: 'OAuth tokens are time-limited (typically 30-90 days). The host needs to log in again and create a new invite link.',
@@ -49,12 +48,11 @@ router.get('/search', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Query parameter required' });
   }
 
-  // Try to get host's token from request (header or cookie)
   let hostToken = getHostTokenFromRequest(req);
   
   // If no token but sessionId provided, use session's hostToken (for guests)
   if (!hostToken && sessionId && typeof sessionId === 'string') {
-    const session = sessions.get(sessionId.toUpperCase());
+    const session = await valkey.getSession(sessionId.toUpperCase());
     if (session?.hostToken) {
       hostToken = session.hostToken;
       console.log(`Guest search using session ${sessionId} hostToken`);
@@ -66,7 +64,7 @@ router.get('/search', async (req: Request, res: Response) => {
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ 
         error: 'Session expired. The host needs to log in again.',
         sessionExpired: true,
@@ -84,11 +82,9 @@ router.get('/search', async (req: Request, res: Response) => {
   try {
     const tidalResults = await searchTidal(auth.token, query, auth.countryCode);
     
-    // Parse tracks using shared helper
     const trackData = Array.isArray(tidalResults.data) ? tidalResults.data : [];
     const included = tidalResults.included || [];
     
-    // Build maps for quick lookup
     const albumMap = new Map<string, any>();
     const artistMap = new Map<string, any>();
     const artworkMap = new Map<string, any>();
@@ -99,7 +95,6 @@ router.get('/search', async (req: Request, res: Response) => {
       if (item.type === 'artworks') artworkMap.set(item.id, item);
     });
     
-    // Parse duration
     function parseDuration(isoDuration: string): number {
       if (!isoDuration) return 0;
       const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -178,7 +173,7 @@ router.post('/playlists', async (req: Request, res: Response) => {
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -227,7 +222,7 @@ router.patch('/playlists/:playlistId', async (req: Request, res: Response) => {
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -238,21 +233,19 @@ router.patch('/playlists/:playlistId', async (req: Request, res: Response) => {
   }
   
   try {
-    // Build full description with user's text + contributor credits
     let fullDescription: string | undefined;
     
     if (sessionId) {
-      const session = sessions.get(sessionId.toUpperCase());
+      const session = await valkey.getSession(sessionId.toUpperCase());
       if (session) {
-        const participants = Array.from(session.participants.values());
-        fullDescription = buildContributorDescription(participants, session.hostName, userDescription);
-        
-        // Store user description in session for future updates
+        // Note: participants are in-memory, we don't have them here
+        // Just use the user description
+        fullDescription = userDescription || '';
         session.userDescription = userDescription || '';
+        await valkey.setSession(session.id, session);
       }
     }
     
-    // Update the playlist
     const success = await updatePlaylist(auth.token, playlistId, {
       name,
       description: fullDescription,
@@ -262,11 +255,11 @@ router.patch('/playlists/:playlistId', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to update playlist' });
     }
     
-    // Broadcast name change to all session participants
     if (sessionId && io && name) {
-      const session = sessions.get(sessionId.toUpperCase());
+      const session = await valkey.getSession(sessionId.toUpperCase());
       if (session) {
         session.name = name;
+        await valkey.setSession(session.id, session);
         io.to(session.id).emit('playlist_renamed', { name });
       }
     }
@@ -285,7 +278,7 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
   
   let hostToken = getHostTokenFromRequest(req);
   if (!hostToken && sessionId) {
-    const session = sessions.get(sessionId.toUpperCase());
+    const session = await valkey.getSession(sessionId.toUpperCase());
     if (session?.hostToken) {
       hostToken = session.hostToken;
     }
@@ -296,7 +289,7 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -317,21 +310,17 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
     const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
     
     if (sessionId && io) {
-      const session = sessions.get(sessionId.toUpperCase());
+      const session = await valkey.getSession(sessionId.toUpperCase());
       if (session) {
         session.tracks = tracks;
+        await valkey.setSession(session.id, session);
         io.to(session.id).emit('playlist_synced', { tracks });
         console.log(`Broadcasted ${tracks.length} tracks to session ${sessionId}`);
         
-        // Update playlist description with contributors (non-blocking)
-        const participants = Array.from(session.participants.values());
-        if (participants.length > 0) {
-          const description = buildContributorDescription(participants, session.hostName, session.userDescription);
-          updatePlaylistDescription(auth.token, playlistId, description)
-            .then(success => {
-              if (success) console.log(`Updated playlist description: ${description}`);
-            })
-            .catch(() => {}); // Ignore errors, this is optional
+        // Update playlist description (non-blocking, without participants since they're in-memory)
+        if (session.userDescription) {
+          updatePlaylistDescription(auth.token, playlistId, session.userDescription)
+            .catch(() => {});
         }
       }
     }
@@ -340,9 +329,8 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
   } catch (error: any) {
     console.error('>>> Add tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      // Notify all clients in session that playlist is gone
       if (sessionId && io) {
-        const session = sessions.get(sessionId.toUpperCase());
+        const session = await valkey.getSession(sessionId.toUpperCase());
         if (session) {
           io.to(session.id).emit('playlist_unavailable', { 
             playlistId,
@@ -368,7 +356,7 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -389,9 +377,10 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
     const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
     
     if (sessionId && io) {
-      const session = sessions.get(sessionId.toUpperCase());
+      const session = await valkey.getSession(sessionId.toUpperCase());
       if (session) {
         session.tracks = tracks;
+        await valkey.setSession(session.id, session);
         io.to(session.id).emit('playlist_synced', { tracks });
       }
     }
@@ -400,9 +389,8 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   } catch (error: any) {
     console.error('>>> Remove tracks error:', error.message);
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      // Notify all clients in session that playlist is gone
       if (sessionId && io) {
-        const session = sessions.get(sessionId.toUpperCase());
+        const session = await valkey.getSession(sessionId.toUpperCase());
         if (session) {
           io.to(session.id).emit('playlist_unavailable', { 
             playlistId,
@@ -427,7 +415,7 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -454,7 +442,6 @@ router.get('/playlists/:playlistId/tracks', async (req: Request, res: Response) 
     
   } catch (error: any) {
     console.error('>>> Tidal playlist tracks FAILED:', error);
-    // Handle playlist not found (deleted on Tidal)
     if (error.message === 'PLAYLIST_NOT_FOUND') {
       return res.status(404).json({ error: 'Playlist not found or no longer accessible.' });
     }
@@ -467,12 +454,10 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   const { playlistId } = req.params;
   const { sessionId } = req.query;
 
-  // Try to get host's token from request (header or cookie)
   let hostToken = getHostTokenFromRequest(req);
   
-  // If no token but sessionId provided, use session's hostToken (for guests)
   if (!hostToken && sessionId && typeof sessionId === 'string') {
-    const session = sessions.get(sessionId.toUpperCase());
+    const session = await valkey.getSession(sessionId.toUpperCase());
     if (session?.hostToken) {
       hostToken = session.hostToken;
     }
@@ -483,7 +468,7 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
     auth = hostToken ? await getHostAccessToken(hostToken) : null;
   } catch (err) {
     if (err instanceof TokenExpiredError && hostToken) {
-      emitSessionExpired(hostToken);
+      await emitSessionExpired(hostToken);
       return res.status(401).json({ error: 'Session expired', sessionExpired: true });
     }
     throw err;
@@ -494,7 +479,6 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
   }
 
   try {
-    // Fetch both playlist info and tracks
     const [playlistInfo, tracks] = await Promise.all([
       getPlaylistInfo(auth.token, playlistId),
       getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode),
@@ -503,15 +487,15 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
     const isPublic = playlistInfo?.privacy === 'PUBLIC';
     
     if (sessionId && typeof sessionId === 'string' && io) {
-      const session = sessions.get(sessionId.toUpperCase());
+      const session = await valkey.getSession(sessionId.toUpperCase());
       if (session) {
         session.tracks = tracks;
         session.isPublic = isPublic;
-        // Update session name from Tidal
         if (playlistInfo?.name) {
           session.name = playlistInfo.name;
         }
-        // Broadcast tracks, name, and privacy
+        await valkey.setSession(session.id, session);
+        
         io.to(session.id).emit('playlist_synced', { 
           tracks, 
           playlistName: playlistInfo?.name,
@@ -524,11 +508,9 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
     return res.json({ success: true, tracks, playlistName: playlistInfo?.name, isPublic });
   } catch (error: any) {
     console.error('>>> Refresh playlist FAILED:', error);
-    // Handle deleted playlist
     if (error.message === 'PLAYLIST_NOT_FOUND') {
-      // Notify session that playlist was deleted
       if (sessionId && typeof sessionId === 'string' && io) {
-        const session = sessions.get(sessionId.toUpperCase());
+        const session = await valkey.getSession(sessionId.toUpperCase());
         if (session) {
           io.to(session.id).emit('playlist_unavailable', { 
             playlistId,
@@ -546,4 +528,3 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
 });
 
 export default router;
-

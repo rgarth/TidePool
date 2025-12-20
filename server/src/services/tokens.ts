@@ -1,41 +1,11 @@
-// Token persistence and management
-import fs from 'fs';
-import path from 'path';
+// Token management with Valkey/Redis
 import dotenv from 'dotenv';
+import { Request } from 'express';
 import { UserTokens } from '../types/index.js';
+import * as valkey from './valkey.js';
 
-// Load dotenv BEFORE reading any env vars (ES modules hoist imports, so this must be here)
+// Load dotenv
 dotenv.config();
-
-// Token persistence file (for development - survives server restarts)
-const TOKEN_FILE = path.join(process.cwd(), '.tokens.json');
-
-// Load tokens from disk on startup
-export function loadTokens(): Map<string, UserTokens> {
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      const data = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf-8'));
-      console.log(`Loaded ${Object.keys(data).length} tokens from disk`);
-      return new Map(Object.entries(data));
-    }
-  } catch (e) {
-    console.error('Failed to load tokens:', e);
-  }
-  return new Map();
-}
-
-// Save tokens to disk
-export function saveTokens(tokens: Map<string, UserTokens>): void {
-  try {
-    const data = Object.fromEntries(tokens);
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Failed to save tokens:', e);
-  }
-}
-
-// Host tokens storage (loaded from disk on startup)
-export const hostTokens = loadTokens();
 
 // Tidal configuration
 export const TIDAL_CLIENT_ID = process.env.TIDAL_CLIENT_ID;
@@ -62,7 +32,51 @@ export class TokenExpiredError extends Error {
   }
 }
 
-// Refresh access token
+/**
+ * Set a host token
+ */
+export async function setHostToken(hostToken: string, data: UserTokens): Promise<void> {
+  await valkey.setToken(hostToken, {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: data.expiresAt,
+    countryCode: data.countryCode,
+    userId: data.userId,
+    username: data.username,
+  });
+}
+
+/**
+ * Get a host token
+ */
+export async function getHostToken(hostToken: string): Promise<UserTokens | null> {
+  return await valkey.getToken(hostToken);
+}
+
+/**
+ * Delete a host token
+ */
+export async function deleteHostToken(hostToken: string): Promise<void> {
+  await valkey.deleteToken(hostToken);
+}
+
+/**
+ * Find all tokens for a user (cross-device support)
+ */
+export async function getTokensForUser(userId: string): Promise<string[]> {
+  return await valkey.getTokensForUser(userId);
+}
+
+/**
+ * Find existing token for a user (for token reuse on new device)
+ */
+export async function findExistingTokenForUser(userId: string): Promise<string | null> {
+  return await valkey.findTokenForUser(userId);
+}
+
+/**
+ * Refresh access token with Tidal
+ */
 export async function refreshAccessToken(refreshToken: string): Promise<any> {
   const credentials = Buffer.from(`${TIDAL_CLIENT_ID}:${TIDAL_CLIENT_SECRET}`).toString('base64');
   
@@ -79,7 +93,6 @@ export async function refreshAccessToken(refreshToken: string): Promise<any> {
   });
 
   if (!response.ok) {
-    // 400/401 typically means refresh token is invalid or expired
     if (response.status === 400 || response.status === 401) {
       throw new TokenExpiredError('OAuth session has expired. The host needs to re-authenticate.');
     }
@@ -89,9 +102,11 @@ export async function refreshAccessToken(refreshToken: string): Promise<any> {
   return response.json();
 }
 
-// Get host's access token (with auto-refresh)
+/**
+ * Get host's access token (with auto-refresh)
+ */
 export async function getHostAccessToken(hostToken: string): Promise<{ token: string; countryCode: string; userId: string } | null> {
-  const tokens = hostTokens.get(hostToken);
+  const tokens = await getHostToken(hostToken);
   if (!tokens) {
     return null;
   }
@@ -100,18 +115,16 @@ export async function getHostAccessToken(hostToken: string): Promise<{ token: st
   if (tokens.expiresAt < Date.now() + 300000) {
     try {
       const refreshed = await refreshAccessToken(tokens.refreshToken);
-      hostTokens.set(hostToken, {
+      const updated: UserTokens = {
         ...tokens,
         accessToken: refreshed.access_token,
         expiresAt: Date.now() + refreshed.expires_in * 1000,
-      });
-      saveTokens(hostTokens);
+      };
+      await setHostToken(hostToken, updated);
       return { token: refreshed.access_token, countryCode: tokens.countryCode, userId: tokens.userId };
     } catch (err) {
       console.error('Failed to refresh token:', err);
-      hostTokens.delete(hostToken);
-      saveTokens(hostTokens);
-      // Re-throw TokenExpiredError so callers can handle it specially
+      await deleteHostToken(hostToken);
       if (err instanceof TokenExpiredError) {
         throw err;
       }
@@ -122,18 +135,13 @@ export async function getHostAccessToken(hostToken: string): Promise<{ token: st
   return { token: tokens.accessToken, countryCode: tokens.countryCode, userId: tokens.userId };
 }
 
-// Extract host token from request (cookie OR header)
-// Header takes precedence (for cross-origin scenarios with third-party cookie blocking)
-import { Request } from 'express';
-
+/**
+ * Extract host token from request (cookie OR header)
+ */
 export function getHostTokenFromRequest(req: Request): string | undefined {
-  // Check header first (X-Host-Token)
   const headerToken = req.headers['x-host-token'];
   if (headerToken && typeof headerToken === 'string') {
     return headerToken;
   }
-  
-  // Fall back to cookie
   return req.cookies?.tidepool_host;
 }
-

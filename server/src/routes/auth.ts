@@ -10,13 +10,15 @@ import {
   TIDAL_SCOPES,
   REDIRECT_URI,
   CLIENT_URL,
-  hostTokens,
-  saveTokens,
   getHostAccessToken,
   getHostTokenFromRequest,
+  setHostToken,
+  getHostToken,
+  deleteHostToken,
+  findExistingTokenForUser,
 } from '../services/tokens.js';
 import { PendingAuth } from '../types/index.js';
-import { sessions } from './sessions.js';
+import * as valkey from '../services/valkey.js';
 import { sanitizeDisplayName } from '../utils/sanitize.js';
 
 const router = Router();
@@ -52,7 +54,7 @@ function generateCodeChallenge(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
 
-// Temporary storage for OAuth state
+// Temporary storage for OAuth state (in-memory is fine, short-lived)
 export const pendingAuth = new Map<string, PendingAuth>();
 
 // Start OAuth login flow
@@ -82,7 +84,7 @@ router.get('/login', (req: Request, res: Response) => {
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = nanoid(16);
   
-  // Store for callback (sessionId can be undefined for pre-auth login)
+  // Store for callback
   pendingAuth.set(state, { codeVerifier, sessionId: sessionIdStr || '', hostToken });
   
   // Build authorization URL
@@ -151,7 +153,6 @@ router.get('/callback', async (req: Request, res: Response) => {
     let userId = '';
     let username = '';
     
-    // Get user info - use v2 endpoint (the one that works with OAuth tokens)
     try {
       const userResponse = await fetch('https://openapi.tidal.com/v2/users/me', {
         headers: {
@@ -167,7 +168,6 @@ router.get('/callback', async (req: Request, res: Response) => {
         const attrs = data.attributes || data;
         countryCode = attrs.countryCode || attrs.country || data.countryCode || 'US';
         userId = data.id?.toString() || attrs.userId?.toString() || data.userId?.toString() || '';
-        // Sanitize username from external API
         username = sanitizeDisplayName(attrs.username, '', 50);
       }
     } catch (err) {
@@ -175,20 +175,17 @@ router.get('/callback', async (req: Request, res: Response) => {
     }
 
     // Check if this user already has a hostToken (from another device)
-    // If so, reuse it so all devices share the same token
     let finalHostToken = pending.hostToken;
     if (userId) {
-      for (const [existingToken, data] of hostTokens.entries()) {
-        if (data.userId === userId) {
-          console.log(`Found existing hostToken for user ${userId}, reusing it`);
-          finalHostToken = existingToken;
-        break;
-        }
+      const existingToken = await findExistingTokenForUser(userId);
+      if (existingToken) {
+        console.log(`Found existing hostToken for user ${userId}, reusing it`);
+        finalHostToken = existingToken;
       }
     }
 
-    // Store/update tokens (reusing existing token if found)
-    hostTokens.set(finalHostToken, {
+    // Store/update tokens
+    await setHostToken(finalHostToken, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -198,25 +195,24 @@ router.get('/callback', async (req: Request, res: Response) => {
     });
     
     // Clean up the pending hostToken if we're using a different one
-    if (finalHostToken !== pending.hostToken && hostTokens.has(pending.hostToken)) {
-      hostTokens.delete(pending.hostToken);
+    if (finalHostToken !== pending.hostToken) {
+      await deleteHostToken(pending.hostToken);
     }
-    
-    saveTokens(hostTokens);
 
     console.log(`Authenticated host ${finalHostToken.substring(0, 8)}... (${username})${pending.sessionId ? ` for session ${pending.sessionId}` : ''}`);
     
-    // Store hostToken in session so guests can use it (if session exists)
+    // Store hostToken in session if session exists
     if (pending.sessionId) {
-    const session = sessions.get(pending.sessionId.toUpperCase());
-    if (session) {
+      const session = await valkey.getSession(pending.sessionId.toUpperCase());
+      if (session) {
         session.hostToken = finalHostToken;
         session.hostName = sanitizeDisplayName(username, 'Host');
-      console.log(`Stored hostToken in session ${pending.sessionId}`);
+        await valkey.setSession(session.id, session);
+        console.log(`Stored hostToken in session ${pending.sessionId}`);
       }
     }
     
-    // Set persistent cookie (still useful for same-origin scenarios)
+    // Set persistent cookie
     res.cookie('tidepool_host', finalHostToken, {
       httpOnly: true,
       secure: true,
@@ -226,10 +222,8 @@ router.get('/callback', async (req: Request, res: Response) => {
     
     // Redirect based on whether there was a sessionId
     if (pending.sessionId) {
-    // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
       res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${finalHostToken}`);
     } else {
-      // No session - redirect to picker to show existing sessions
       res.redirect(`${CLIENT_URL}/session?auth=success&token=${finalHostToken}`);
     }
     
@@ -240,61 +234,80 @@ router.get('/callback', async (req: Request, res: Response) => {
 });
 
 // Check auth status
-router.get('/status', (req: Request, res: Response) => {
-  const hostToken = getHostTokenFromRequest(req);
-  const tokens = hostToken ? hostTokens.get(hostToken) : null;
-  
-  res.json({
-    authenticated: !!tokens,
-    expiresAt: tokens?.expiresAt,
-    userId: tokens?.userId || null,
-    username: tokens?.username || null,
-  });
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    const hostToken = getHostTokenFromRequest(req);
+    const tokens = hostToken ? await getHostToken(hostToken) : null;
+    
+    res.json({
+      authenticated: !!tokens,
+      expiresAt: tokens?.expiresAt,
+      userId: tokens?.userId || null,
+      username: tokens?.username || null,
+    });
+  } catch (err) {
+    console.error('Failed to check auth status:', err);
+    res.status(500).json({ error: 'Failed to check auth status' });
+  }
 });
 
 // Legacy endpoint for backwards compatibility
-router.get('/status/:sessionId', (req: Request, res: Response) => {
-  const hostToken = getHostTokenFromRequest(req);
-  const tokens = hostToken ? hostTokens.get(hostToken) : null;
-  res.json({
-    authenticated: !!tokens,
-    expiresAt: tokens?.expiresAt,
-  });
+router.get('/status/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const hostToken = getHostTokenFromRequest(req);
+    const tokens = hostToken ? await getHostToken(hostToken) : null;
+    res.json({
+      authenticated: !!tokens,
+      expiresAt: tokens?.expiresAt,
+    });
+  } catch (err) {
+    console.error('Failed to check auth status:', err);
+    res.status(500).json({ error: 'Failed to check auth status' });
+  }
 });
 
 // Get credentials for Tidal Player SDK
 router.get('/credentials', async (req: Request, res: Response) => {
-  const hostToken = getHostTokenFromRequest(req);
-  
-  if (!hostToken) {
-    return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const hostToken = getHostTokenFromRequest(req);
+    
+    if (!hostToken) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const auth = await getHostAccessToken(hostToken);
+    
+    if (!auth) {
+      return res.status(401).json({ error: 'Session expired' });
+    }
+    
+    const tokens = await getHostToken(hostToken);
+    
+    res.json({
+      clientId: TIDAL_CLIENT_ID,
+      accessToken: auth.token,
+      expiresAt: tokens?.expiresAt,
+      countryCode: auth.countryCode,
+    });
+  } catch (err) {
+    console.error('Failed to get credentials:', err);
+    res.status(500).json({ error: 'Failed to get credentials' });
   }
-  
-  const auth = await getHostAccessToken(hostToken);
-  
-  if (!auth) {
-    return res.status(401).json({ error: 'Session expired' });
-  }
-  
-  const tokens = hostTokens.get(hostToken);
-  
-  res.json({
-    clientId: TIDAL_CLIENT_ID,
-    accessToken: auth.token,
-    expiresAt: tokens?.expiresAt,
-    countryCode: auth.countryCode,
-  });
 });
 
 // Logout
-router.post('/logout', (req: Request, res: Response) => {
-  const hostToken = getHostTokenFromRequest(req);
-  if (hostToken) {
-    hostTokens.delete(hostToken);
+router.post('/logout', async (req: Request, res: Response) => {
+  try {
+    const hostToken = getHostTokenFromRequest(req);
+    if (hostToken) {
+      await deleteHostToken(hostToken);
+    }
+    res.clearCookie('tidepool_host');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to logout:', err);
+    res.status(500).json({ error: 'Failed to logout' });
   }
-  res.clearCookie('tidepool_host');
-  res.json({ success: true });
 });
 
 export default router;
-
