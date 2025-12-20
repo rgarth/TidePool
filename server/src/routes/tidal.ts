@@ -349,7 +349,14 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   const { playlistId } = req.params;
   const { trackIds, sessionId } = req.body;
   
-  const hostToken = getHostTokenFromRequest(req);
+  // Get hostToken from request OR fall back to session's hostToken (for guests)
+  let hostToken = getHostTokenFromRequest(req);
+  if (!hostToken && sessionId) {
+    const session = await valkey.getSession(sessionId.toUpperCase());
+    if (session?.hostToken) {
+      hostToken = session.hostToken;
+    }
+  }
   
   let auth;
   try {

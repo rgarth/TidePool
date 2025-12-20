@@ -35,16 +35,14 @@ export function TrackItem({ track, index, isHost, isDeleting, onDelete }: TrackI
       
       <span className="track-duration">{formatDuration(track.duration)}</span>
       
-      {isHost && (
-        <button
-          className="btn btn-danger btn-icon"
-          onClick={() => onDelete(track.id)}
-          disabled={isDeleting}
-          title="Remove from playlist"
-        >
-          {isDeleting ? <Spinner size={18} /> : <TrashIcon size={18} />}
-        </button>
-      )}
+      <button
+        className="btn btn-danger btn-icon"
+        onClick={() => onDelete(track.id)}
+        disabled={isDeleting}
+        title="Remove from playlist"
+      >
+        {isDeleting ? <Spinner size={18} /> : <TrashIcon size={18} />}
+      </button>
     </motion.div>
   );
 }
