@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BackArrowIcon, MusicIcon, JoinIcon } from '../components/Icons';
@@ -13,6 +13,7 @@ export function JoinPage() {
   const [sessionCode, setSessionCode] = useState(urlSessionId?.toUpperCase() || '');
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const handleCodeChange = (value: string) => {
     setSessionCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
@@ -95,23 +96,6 @@ export function JoinPage() {
 
             <div className="flex flex-col gap-md" style={{ textAlign: 'left' }}>
               <div>
-                <label htmlFor="name" className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
-                  Your Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  className="input"
-                  placeholder="Enter your name..."
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
-                  maxLength={50}
-                  autoFocus={!urlSessionId}
-                />
-              </div>
-
-              <div>
                 <label htmlFor="code" className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
                   Playlist Code
                 </label>
@@ -122,13 +106,31 @@ export function JoinPage() {
                   placeholder="ABC123"
                   value={sessionCode}
                   onChange={(e) => handleCodeChange(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
-                  autoFocus={!!urlSessionId}
+                  onKeyDown={(e) => e.key === 'Enter' && nameInputRef.current?.focus()}
+                  autoFocus={!urlSessionId}
                   style={{
                     fontSize: '1.5rem',
                     letterSpacing: '0.2em',
                     textTransform: 'uppercase',
                   }}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="name" className="text-secondary text-sm mb-sm" style={{ display: 'block' }}>
+                  Your Name
+                </label>
+                <input
+                  ref={nameInputRef}
+                  id="name"
+                  type="text"
+                  className="input"
+                  placeholder="Enter your name..."
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
+                  maxLength={50}
+                  autoFocus={!!urlSessionId}
                 />
               </div>
 
