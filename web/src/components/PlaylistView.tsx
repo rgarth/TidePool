@@ -105,7 +105,6 @@ export function PlaylistView({
           key={`${track.id}-${index}`}
           track={track}
           index={index}
-          isHost={isHost}
           isDeleting={deletingTrackId === track.id}
           onDelete={onDeleteTrack}
         />

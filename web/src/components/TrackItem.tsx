@@ -7,12 +7,11 @@ import type { Track } from '../types';
 interface TrackItemProps {
   track: Track;
   index: number;
-  isHost: boolean;
   isDeleting: boolean;
   onDelete: (trackId: string) => void;
 }
 
-export function TrackItem({ track, index, isHost, isDeleting, onDelete }: TrackItemProps) {
+export function TrackItem({ track, index, isDeleting, onDelete }: TrackItemProps) {
   return (
     <motion.div
       className="track-item"
