@@ -348,29 +348,43 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
   return { success: true };
 }
 
-// Get playlist track IDs
+// Get playlist track IDs (with pagination)
 export async function getPlaylistTrackIds(accessToken: string, playlistId: string): Promise<string[]> {
-  const url = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
+  const allIds: string[] = [];
+  let nextUrl: string | null = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items?page[limit]=100`;
   
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/vnd.api+json',
-    },
-  });
+  while (nextUrl) {
+    const response: Response = await fetch(nextUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.api+json',
+      },
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error(`>>> Playlist items error (${response.status}):`, error.substring(0, 500));
-    // Throw specific error for 404 (playlist not found/deleted)
-    if (response.status === 404 || response.status === 403) {
-      throw new Error('PLAYLIST_NOT_FOUND');
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`>>> Playlist items error (${response.status}):`, error.substring(0, 500));
+      if (response.status === 404 || response.status === 403) {
+        throw new Error('PLAYLIST_NOT_FOUND');
+      }
+      throw new Error(`Failed to get playlist items: ${response.status}`);
     }
-    throw new Error(`Failed to get playlist items: ${response.status}`);
-  }
 
-  const data = await response.json();
-  return (data.data || []).map((item: any) => item.id);
+    const json: any = await response.json();
+    const ids = (json.data || []).map((item: any) => item.id);
+    allIds.push(...ids);
+    
+    // Check for next page
+    nextUrl = json.links?.next || null;
+    
+    // Safety: max 1000 tracks
+    if (allIds.length >= 1000) {
+      console.warn(`Playlist ${playlistId} has 1000+ tracks, truncating`);
+      break;
+    }
+  }
+  
+  return allIds;
 }
 
 // Parse ISO 8601 duration (PT3M20S) to seconds
@@ -455,27 +469,40 @@ export function parseTrackData(data: any, orderedIds?: string[]): Track[] {
   return Array.from(trackMap.values());
 }
 
-// Get full track details
+// Get full track details (batched for large playlists)
 export async function getTrackDetails(accessToken: string, trackIds: string[], countryCode: string): Promise<Track[]> {
   if (trackIds.length === 0) return [];
   
-  const batchIds = trackIds.slice(0, 50).join(',');
-  const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds}&include=albums.coverArt,artists`;
+  const allTracks: Track[] = [];
+  const BATCH_SIZE = 50; // Tidal API limit
   
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/vnd.api+json',
-    },
-  });
+  // Process in batches of 50
+  for (let i = 0; i < trackIds.length; i += BATCH_SIZE) {
+    const batchIds = trackIds.slice(i, i + BATCH_SIZE);
+    const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds.join(',')}&include=albums.coverArt,artists`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.api+json',
+      },
+    });
 
-  if (!response.ok) {
-    console.error(`>>> Failed to fetch track details: ${response.status}`);
-    return [];
+    if (!response.ok) {
+      console.error(`>>> Failed to fetch track details batch ${i}-${i + BATCH_SIZE}: ${response.status}`);
+      continue; // Skip failed batch, continue with others
+    }
+
+    const data = await response.json();
+    const tracks = parseTrackData(data, batchIds);
+    allTracks.push(...tracks);
   }
-
-  const data = await response.json();
-  return parseTrackData(data, trackIds);
+  
+  // Return in original order
+  const trackMap = new Map(allTracks.map(t => [t.tidalId, t]));
+  return trackIds
+    .map(id => trackMap.get(id))
+    .filter((t): t is Track => t !== undefined);
 }
 
 // Get playlist info
