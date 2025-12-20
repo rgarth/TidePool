@@ -488,9 +488,9 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
   
   console.log(`>>> Fetching details for ${trackIds.length} tracks`);
   const allTracks: Track[] = [];
-  const BATCH_SIZE = 50; // Tidal API limit
+  const BATCH_SIZE = 20; // Tidal API limit (max 20 IDs per request)
   
-  // Process in batches of 50
+  // Process in batches of 20
   for (let i = 0; i < trackIds.length; i += BATCH_SIZE) {
     const batchIds = trackIds.slice(i, i + BATCH_SIZE);
     const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds.join(',')}&include=albums.coverArt,artists`;
