@@ -53,10 +53,17 @@ export function SessionPickerView() {
   const authSuccess = searchParams.get('auth') === 'success';
   const urlToken = searchParams.get('token');
   
-  // Delay auth check slightly if we just got a token from URL
-  const { isAuthenticated, isChecking, hostToken, username } = useAuth({
-    delayCheck: authSuccess && urlToken ? 100 : 0
-  });
+  // If we have a token in URL, save it IMMEDIATELY (before any hooks run)
+  // This ensures apiFetch will have the token when useAuth checks status
+  if (authSuccess && urlToken && getHostToken() !== urlToken) {
+    setHostToken(urlToken);
+  }
+  
+  // Now check auth status (token is already in localStorage)
+  const { isAuthenticated: serverAuthenticated, isChecking, hostToken, username } = useAuth();
+  
+  // Trust URL token immediately - don't wait for server verification
+  const isAuthenticated = serverAuthenticated || (authSuccess && !!urlToken);
   const [existingSessions, setExistingSessions] = useState<ExistingSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
@@ -77,24 +84,17 @@ export function SessionPickerView() {
   // Hidden feature: ?resume=CODE allows reusing a session code after server restart
   const resumeCode = searchParams.get('resume');
   
-  // Extract and store token from URL (for cross-origin auth)
-  // Save token immediately, but wait for auth check to complete before cleaning URL
+  // Clean up URL after auth (token already saved synchronously above)
   useEffect(() => {
     if (authSuccess && urlToken) {
-      setHostToken(urlToken);
-    }
-  }, [authSuccess, urlToken]);
-  
-  // Clean up URL after auth check completes (to avoid race condition)
-  useEffect(() => {
-    if (authSuccess && !isChecking && isAuthenticated) {
+      // Clean URL immediately - we already saved the token
       const newParams = new URLSearchParams(searchParams);
       newParams.delete('token');
       newParams.delete('auth');
       const newUrl = newParams.toString() ? `/session?${newParams.toString()}` : '/session';
       navigate(newUrl, { replace: true });
     }
-  }, [authSuccess, isChecking, isAuthenticated, navigate, searchParams]);
+  }, [authSuccess, urlToken, navigate, searchParams]);
 
   // Fetch existing sessions when authenticated
   useEffect(() => {

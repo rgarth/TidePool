@@ -1,7 +1,8 @@
 // Session management routes
 import { Router, Request, Response } from 'express';
-import { CLIENT_URL, getHostToken, getTokensForUser } from '../services/tokens.js';
+import { CLIENT_URL, getHostToken, getHostAccessToken, getTokensForUser } from '../services/tokens.js';
 import * as valkey from '../services/valkey.js';
+import { getPlaylistWithFullTracks } from '../services/tidal.js';
 
 const router = Router();
 
@@ -65,19 +66,34 @@ router.post('/', async (req: Request, res: Response) => {
     
     const sessionName = playlistName?.trim() || generateRandomSessionName();
     
+    // Fetch existing tracks from Tidal playlist
+    let tracks: any[] = [];
+    if (hostToken) {
+      try {
+        const auth = await getHostAccessToken(hostToken);
+        if (auth) {
+          tracks = await getPlaylistWithFullTracks(auth.token, tidalPlaylistId, auth.countryCode);
+          console.log(`Fetched ${tracks.length} existing tracks from playlist ${tidalPlaylistId}`);
+        }
+      } catch (err) {
+        console.warn('Could not fetch existing playlist tracks:', err);
+        // Continue without tracks - user can refresh later
+      }
+    }
+    
     const session: valkey.StoredSession = {
       id: sessionId,
       hostId: '',
       hostToken: hostToken || undefined,
       name: sessionName,
-      tracks: [],
+      tracks,
       createdAt: new Date().toISOString(),
       tidalPlaylistId,
       tidalPlaylistUrl,
     };
     
     await valkey.setSession(sessionId, session);
-    console.log(`Session ${sessionId} created with playlist ${tidalPlaylistId} (${sessionName})`);
+    console.log(`Session ${sessionId} created with playlist ${tidalPlaylistId} (${sessionName}, ${tracks.length} tracks)`);
     
     res.json({
       sessionId,

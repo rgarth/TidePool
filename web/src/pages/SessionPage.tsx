@@ -17,7 +17,7 @@ import { EditPlaylistModal } from '../components/EditPlaylistModal';
 import { EndSessionModal } from '../components/EndSessionModal';
 import { BottomBar } from '../components/BottomBar';
 import { PageSpinner } from '../components/Spinner';
-import { setHostToken, clearHostToken, apiFetch } from '../config';
+import { setHostToken, clearHostToken, getHostToken, apiFetch } from '../config';
 
 export function SessionPage() {
   const { sessionId } = useParams();
@@ -54,8 +54,14 @@ export function SessionPage() {
   // Auth handling for OAuth callback
   const authSuccess = searchParams.get('auth') === 'success';
   const urlToken = searchParams.get('token');
-  // Keep useAuth call for potential side effects, though we don't need isAuthenticated here
-  useAuth({ delayCheck: authSuccess && urlToken ? 100 : 0 });
+  
+  // If we have a token in URL, save it IMMEDIATELY (before any hooks run)
+  if (authSuccess && urlToken && getHostToken() !== urlToken) {
+    setHostToken(urlToken);
+  }
+  
+  // Keep useAuth call for potential side effects
+  useAuth();
   
   // Playlist operations
   const playlist = usePlaylistActions({
@@ -144,12 +150,12 @@ export function SessionPage() {
     }
   }, [sessionId]);
 
-  // Extract and store token from URL (for cross-origin auth)
+  // Clean up URL after auth (token already saved synchronously above)
   useEffect(() => {
     if (authSuccess && urlToken) {
-      setHostToken(urlToken);
       const newParams = new URLSearchParams(searchParams);
       newParams.delete('token');
+      newParams.delete('auth');
       navigate(`/session/${sessionId}?${newParams.toString()}`, { replace: true });
     }
   }, [authSuccess, urlToken, navigate, sessionId, searchParams]);
