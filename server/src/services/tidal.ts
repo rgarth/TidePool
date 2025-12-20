@@ -352,8 +352,12 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
 export async function getPlaylistTrackIds(accessToken: string, playlistId: string): Promise<string[]> {
   const allIds: string[] = [];
   let nextUrl: string | null = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items?page[limit]=100`;
+  let pageNum = 0;
   
   while (nextUrl) {
+    pageNum++;
+    console.log(`>>> Fetching playlist items page ${pageNum}...`);
+    
     const response: Response = await fetch(nextUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -373,6 +377,7 @@ export async function getPlaylistTrackIds(accessToken: string, playlistId: strin
     const json: any = await response.json();
     const ids = (json.data || []).map((item: any) => item.id);
     allIds.push(...ids);
+    console.log(`>>> Page ${pageNum}: got ${ids.length} IDs (total: ${allIds.length})`);
     
     // Check for next page
     nextUrl = json.links?.next || null;
@@ -384,6 +389,7 @@ export async function getPlaylistTrackIds(accessToken: string, playlistId: strin
     }
   }
   
+  console.log(`>>> Total track IDs: ${allIds.length}`);
   return allIds;
 }
 
@@ -473,6 +479,7 @@ export function parseTrackData(data: any, orderedIds?: string[]): Track[] {
 export async function getTrackDetails(accessToken: string, trackIds: string[], countryCode: string): Promise<Track[]> {
   if (trackIds.length === 0) return [];
   
+  console.log(`>>> Fetching details for ${trackIds.length} tracks`);
   const allTracks: Track[] = [];
   const BATCH_SIZE = 50; // Tidal API limit
   
@@ -481,22 +488,30 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
     const batchIds = trackIds.slice(i, i + BATCH_SIZE);
     const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds.join(',')}&include=albums.coverArt,artists`;
     
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/vnd.api+json',
-      },
-    });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.api+json',
+        },
+      });
 
-    if (!response.ok) {
-      console.error(`>>> Failed to fetch track details batch ${i}-${i + BATCH_SIZE}: ${response.status}`);
-      continue; // Skip failed batch, continue with others
+      if (!response.ok) {
+        console.error(`>>> Failed to fetch track details batch ${i}-${i + BATCH_SIZE}: ${response.status}`);
+        continue; // Skip failed batch, continue with others
+      }
+
+      const data = await response.json();
+      const tracks = parseTrackData(data, batchIds);
+      console.log(`>>> Batch ${i}-${i + batchIds.length}: got ${tracks.length} tracks`);
+      allTracks.push(...tracks);
+    } catch (err) {
+      console.error(`>>> Error fetching batch ${i}-${i + BATCH_SIZE}:`, err);
+      continue; // Skip failed batch
     }
-
-    const data = await response.json();
-    const tracks = parseTrackData(data, batchIds);
-    allTracks.push(...tracks);
   }
+  
+  console.log(`>>> Total tracks fetched: ${allTracks.length}`);
   
   // Return in original order
   const trackMap = new Map(allTracks.map(t => [t.tidalId, t]));
