@@ -511,6 +511,7 @@ router.get('/playlists/:playlistId/refresh', async (req: Request, res: Response)
         if (playlistInfo?.name) {
           session.name = playlistInfo.name;
         }
+        saveSessions(sessions);
         // Broadcast tracks, name, and privacy
         io.to(session.id).emit('playlist_synced', { 
           tracks, 

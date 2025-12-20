@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { BackArrowIcon, TidalLogo, PlayCircleIcon, ReloadIcon, CloseIcon, WarningIcon, LinkIcon, CopyIcon, CheckIcon, TrashIcon } from './Icons';
 import { PageSpinner } from './Spinner';
 import { EndSessionModal } from './EndSessionModal';
-import { API_URL, apiFetch, clearHostToken, setHostToken } from '../config';
+import { PlaylistPicker } from './PlaylistPicker';
+import { API_URL, apiFetch, clearHostToken, setHostToken, getHostToken } from '../config';
 
 interface ExistingSession {
   id: string;
@@ -15,6 +16,33 @@ interface ExistingSession {
   trackCount: number;
   participantCount: number;
   createdAt: string;
+}
+
+// Random playlist name generator
+const ADJECTIVES = [
+  'Midnight', 'Summer', 'Chill', 'Epic', 'Groovy', 'Smooth', 'Cosmic',
+  'Electric', 'Golden', 'Sunset', 'Highway', 'Road Trip', 'Late Night',
+  'Weekend', 'Sunday', 'Throwback', 'Fresh', 'Good Times', 'Cruising'
+];
+const NOUNS = [
+  'Bangers', 'Jams', 'Beats', 'Vibes', 'Tunes', 'Tracks', 'Hits',
+  'Grooves', 'Sounds', 'Mix', 'Playlist', 'Session', 'Party', 'Drive',
+  'Journey', 'Waves', 'Flow', 'Mood', 'Energy', 'Magic'
+];
+
+function generateRandomName(): string {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return `${adj} ${noun}`;
+}
+
+function extractPlaylistId(input: string): string | null {
+  const trimmed = input.trim();
+  const urlMatch = trimmed.match(/playlist\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (urlMatch) return urlMatch[1];
+  const uuidMatch = trimmed.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  if (uuidMatch) return uuidMatch[1];
+  return null;
 }
 
 export function SessionPickerView() {
@@ -36,6 +64,15 @@ export function SessionPickerView() {
   const [hubCopied, setHubCopied] = useState(false);
   const [sessionToEnd, setSessionToEnd] = useState<ExistingSession | null>(null);
   const [isEndingSession, setIsEndingSession] = useState(false);
+  
+  // Playlist picker state (shown inline when creating new session)
+  const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
+  const [dismissedAutoPicker, setDismissedAutoPicker] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [existingPlaylistId, setExistingPlaylistId] = useState('');
+  const [existingPlaylistError, setExistingPlaylistError] = useState('');
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   
   // Hidden feature: ?resume=CODE allows reusing a session code after server restart
   const resumeCode = searchParams.get('resume');
@@ -128,23 +165,21 @@ export function SessionPickerView() {
     }
   };
 
-  const handleCreateNew = async (forceReauth = false) => {
-    // If not authenticated, just redirect to OAuth without creating a session first
-    // After OAuth, user will land back at /session and can see their existing sessions
-    if (!isAuthenticated || forceReauth) {
-      sessionStorage.setItem('userName', 'Host');
-      sessionStorage.setItem('isHost', 'true');
-      window.location.href = `${API_URL}/api/auth/login`;
-      return;
-    }
-    
-    // Already authenticated - create session and navigate
+  // Create session with playlist info and navigate
+  const createSessionWithPlaylist = useCallback(async (playlistId: string, playlistUrl: string, playlistName: string) => {
     try {
+      const token = getHostToken();
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'X-Host-Token': token } : {}),
+        },
+        credentials: 'include',
         body: JSON.stringify({ 
-          hostName: '',
+          tidalPlaylistId: playlistId,
+          tidalPlaylistUrl: playlistUrl,
+          playlistName,
           resumeCode: resumeCode || undefined,
         }),
       });
@@ -159,10 +194,120 @@ export function SessionPickerView() {
     } catch (err) {
       console.error('Failed to create session:', err);
     }
+  }, [navigate, resumeCode]);
+
+  // Create new playlist on Tidal, then create session
+  const handleCreateNewPlaylist = useCallback(async () => {
+    const name = newPlaylistName.trim() || generateRandomName();
+    
+    setIsCreatingPlaylist(true);
+    
+    try {
+      const response = await apiFetch('/api/tidal/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description: 'Created with TidePool' }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to create playlist');
+      
+      const data = await response.json();
+      const playlistUrl = data.listenUrl || `https://listen.tidal.com/playlist/${data.id}`;
+      
+      // Now create session with this playlist
+      await createSessionWithPlaylist(data.id, playlistUrl, name);
+    } catch (err) {
+      console.error('Failed to create playlist:', err);
+    } finally {
+      setIsCreatingPlaylist(false);
+    }
+  }, [newPlaylistName, createSessionWithPlaylist]);
+
+  // Load existing playlist from Tidal, then create session
+  const handleLoadExistingPlaylist = useCallback(async () => {
+    const cleanId = extractPlaylistId(existingPlaylistId);
+    
+    if (!cleanId) {
+      setExistingPlaylistError('Please enter a valid playlist ID or Tidal URL');
+      return;
+    }
+    
+    setIsLoadingExisting(true);
+    setExistingPlaylistError('');
+    
+    try {
+      const response = await apiFetch(`/api/tidal/playlists/${cleanId}/tracks`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Playlist not found or no longer accessible.');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Playlist not found');
+      }
+      
+      const data = await response.json();
+      const playlistName = data.playlistName || 'Untitled Playlist';
+      const playlistUrl = `https://listen.tidal.com/playlist/${cleanId}`;
+      
+      // Now create session with this playlist
+      await createSessionWithPlaylist(cleanId, playlistUrl, playlistName);
+    } catch (err: any) {
+      setExistingPlaylistError(err.message || 'Failed to load playlist');
+    } finally {
+      setIsLoadingExisting(false);
+    }
+  }, [existingPlaylistId, createSessionWithPlaylist]);
+
+  const handleCancelPlaylistPicker = useCallback(() => {
+    setShowPlaylistPicker(false);
+    setDismissedAutoPicker(true);
+    setNewPlaylistName('');
+    setExistingPlaylistId('');
+    setExistingPlaylistError('');
+  }, []);
+
+  const handleCreateNew = async (forceReauth = false) => {
+    // If not authenticated, redirect to OAuth
+    if (!isAuthenticated || forceReauth) {
+      sessionStorage.setItem('userName', 'Host');
+      sessionStorage.setItem('isHost', 'true');
+      window.location.href = `${API_URL}/api/auth/login`;
+      return;
+    }
+    
+    // Already authenticated - show playlist picker
+    setShowPlaylistPicker(true);
+    setDismissedAutoPicker(false);
   };
 
-  if (isChecking) {
+  if (isChecking || isLoadingSessions) {
     return <PageSpinner />;
+  }
+
+  // Auto-show playlist picker if authenticated but no sessions to resume
+  // Also show if manually triggered, unless they dismissed it
+  const shouldShowPicker = showPlaylistPicker || 
+    (isAuthenticated && existingSessions.length === 0 && !dismissedAutoPicker);
+  
+  if (shouldShowPicker) {
+    return (
+      <PlaylistPicker
+        existingPlaylistId={existingPlaylistId}
+        newPlaylistName={newPlaylistName}
+        existingPlaylistError={existingPlaylistError}
+        isLoadingExisting={isLoadingExisting}
+        isCreatingPlaylist={isCreatingPlaylist}
+        onCancel={handleCancelPlaylistPicker}
+        onCreateNewPlaylist={handleCreateNewPlaylist}
+        onUseExistingPlaylist={handleLoadExistingPlaylist}
+        onNewPlaylistNameChange={setNewPlaylistName}
+        onExistingPlaylistIdChange={(id) => {
+          setExistingPlaylistId(id);
+          setExistingPlaylistError('');
+        }}
+      />
+    );
   }
 
   return (

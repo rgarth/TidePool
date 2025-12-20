@@ -1,17 +1,13 @@
 import { motion } from 'framer-motion';
-import { CloseIcon, TidalLogo } from './Icons';
+import { TidalLogo } from './Icons';
 
 interface PlaylistPickerProps {
-  sessionId?: string;
   existingPlaylistId: string;
   newPlaylistName: string;
   existingPlaylistError: string;
   isLoadingExisting: boolean;
   isCreatingPlaylist: boolean;
-  hasLinkedPlaylist: boolean;
-  isCancelling?: boolean;
-  onClose: () => void;
-  onCancel?: () => void;
+  onCancel: () => void;
   onCreateNewPlaylist: () => void;
   onUseExistingPlaylist: () => void;
   onNewPlaylistNameChange: (name: string) => void;
@@ -19,15 +15,11 @@ interface PlaylistPickerProps {
 }
 
 export function PlaylistPicker({
-  sessionId,
   existingPlaylistId,
   newPlaylistName,
   existingPlaylistError,
   isLoadingExisting,
   isCreatingPlaylist,
-  hasLinkedPlaylist,
-  isCancelling,
-  onClose,
   onCancel,
   onCreateNewPlaylist,
   onUseExistingPlaylist,
@@ -42,18 +34,6 @@ export function PlaylistPicker({
         animate={{ opacity: 1, y: 0 }}
         style={{ position: 'relative' }}
       >
-        {/* Close button - only show if there's already a playlist */}
-        {hasLinkedPlaylist && (
-          <button
-            className="modal-close"
-            onClick={onClose}
-            title="Cancel"
-            style={{ position: 'absolute', top: 16, right: 16 }}
-          >
-            <CloseIcon size={20} />
-          </button>
-        )}
-        
         {/* Tidal icon */}
         <div className="flex justify-center mb-lg">
           <div className="flex items-center justify-center" style={{
@@ -129,29 +109,20 @@ export function PlaylistPicker({
           )}
         </div>
         
-        {/* Session code hint */}
-        <p className="text-muted text-sm text-center mt-xl">
-          Session code: <code className="text-accent">{sessionId}</code>
-        </p>
-        
-        {/* Session duration info */}
+        {/* Session info */}
         <div className="session-info-box mt-lg">
           <p className="text-muted text-xs">
-            This session uses your Tidal login and will remain active while your authorization is valid (typically 30-90 days). 
-            If it expires, just log in again and share a new invite link.
+            You'll get a shareable code once your playlist is set up.
           </p>
         </div>
 
-        {/* Cancel button - only show for new sessions without a playlist */}
-        {!hasLinkedPlaylist && onCancel && (
-          <button
-            className="btn btn-ghost btn-block mt-lg"
-            onClick={onCancel}
-            disabled={isCancelling}
-          >
-            {isCancelling ? 'Cancelling...' : 'Cancel'}
-          </button>
-        )}
+        {/* Cancel button */}
+        <button
+          className="btn btn-ghost btn-block mt-lg"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
       </motion.div>
     </div>
   );

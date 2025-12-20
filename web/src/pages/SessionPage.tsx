@@ -6,7 +6,6 @@ import { useSearch } from '../hooks/useSearch';
 import { useAuth } from '../hooks/useAuth';
 import { usePlaylistActions } from '../hooks/usePlaylistActions';
 import { useShare } from '../hooks/useShare';
-import { PlaylistPicker } from '../components/PlaylistPicker';
 import { SessionPickerView } from '../components/SessionPickerView';
 import { SessionHeader } from '../components/SessionHeader';
 import { SearchResults } from '../components/SearchResults';
@@ -44,7 +43,6 @@ export function SessionPage() {
   
   // UI state
   const [activeTab, setActiveTab] = useState<'playlist' | 'participants'>('playlist');
-  const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
   const [isEndingSession, setIsEndingSession] = useState(false);
@@ -52,12 +50,12 @@ export function SessionPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [userDescription, setUserDescription] = useState('');
-  const [isCancellingSession, setIsCancellingSession] = useState(false);
   
-  // Auth handling
+  // Auth handling for OAuth callback
   const authSuccess = searchParams.get('auth') === 'success';
   const urlToken = searchParams.get('token');
-  const { isAuthenticated } = useAuth({ delayCheck: authSuccess && urlToken ? 100 : 0 });
+  // Keep useAuth call for potential side effects, though we don't need isAuthenticated here
+  useAuth({ delayCheck: authSuccess && urlToken ? 100 : 0 });
   
   // Playlist operations
   const playlist = usePlaylistActions({
@@ -100,17 +98,6 @@ export function SessionPage() {
       // Navigate anyway
       navigate('/');
     }
-  };
-
-  // Handle cancel new session (before playlist is set)
-  const handleCancelSession = async () => {
-    setIsCancellingSession(true);
-    try {
-      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error('Failed to delete session:', err);
-    }
-    navigate('/session');
   };
 
   // Handle playlist edit (name and description)
@@ -167,13 +154,6 @@ export function SessionPage() {
     }
   }, [authSuccess, urlToken, navigate, sessionId, searchParams]);
 
-  // Show playlist picker for host if no playlist linked yet
-  useEffect(() => {
-    if (sessionState?.isHost && isAuthenticated && !sessionState.tidalPlaylistId) {
-      setShowPlaylistPicker(true);
-    }
-  }, [sessionState?.isHost, isAuthenticated, sessionState?.tidalPlaylistId]);
-
   // Join session on mount
   useEffect(() => {
     if (isConnected && sessionId) {
@@ -201,34 +181,6 @@ export function SessionPage() {
   // Loading state - no session yet
   if (!sessionState) {
     return <PageSpinner />;
-  }
-
-  // Playlist picker for host
-  if (showPlaylistPicker && sessionState.isHost) {
-    return (
-      <PlaylistPicker
-        sessionId={sessionId}
-        existingPlaylistId={playlist.existingPlaylistId}
-        newPlaylistName={playlist.newPlaylistName}
-        existingPlaylistError={playlist.existingPlaylistError}
-        isLoadingExisting={playlist.isLoadingExisting}
-        isCreatingPlaylist={playlist.isCreatingPlaylist}
-        hasLinkedPlaylist={!!sessionState.tidalPlaylistId}
-        isCancelling={isCancellingSession}
-        onClose={() => setShowPlaylistPicker(false)}
-        onCancel={handleCancelSession}
-        onCreateNewPlaylist={async () => {
-          const success = await playlist.createPlaylist();
-          if (success) setShowPlaylistPicker(false);
-        }}
-        onUseExistingPlaylist={async () => {
-          const success = await playlist.loadExistingPlaylist();
-          if (success) setShowPlaylistPicker(false);
-        }}
-        onNewPlaylistNameChange={playlist.setNewPlaylistName}
-        onExistingPlaylistIdChange={playlist.setExistingPlaylistId}
-      />
-    );
   }
 
   return (

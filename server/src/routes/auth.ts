@@ -182,7 +182,7 @@ router.get('/callback', async (req: Request, res: Response) => {
         if (data.userId === userId) {
           console.log(`Found existing hostToken for user ${userId}, reusing it`);
           finalHostToken = existingToken;
-          break;
+        break;
         }
       }
     }
@@ -208,11 +208,11 @@ router.get('/callback', async (req: Request, res: Response) => {
     
     // Store hostToken in session so guests can use it (if session exists)
     if (pending.sessionId) {
-      const session = sessions.get(pending.sessionId.toUpperCase());
-      if (session) {
+    const session = sessions.get(pending.sessionId.toUpperCase());
+    if (session) {
         session.hostToken = finalHostToken;
         session.hostName = sanitizeDisplayName(username, 'Host');
-        console.log(`Stored hostToken in session ${pending.sessionId}`);
+      console.log(`Stored hostToken in session ${pending.sessionId}`);
       }
     }
     
@@ -226,7 +226,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     
     // Redirect based on whether there was a sessionId
     if (pending.sessionId) {
-      // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
+    // Also pass token in URL for cross-origin scenarios (incognito, third-party cookie blocking)
       res.redirect(`${CLIENT_URL}/session/${pending.sessionId}?auth=success&token=${finalHostToken}`);
     } else {
       // No session - redirect to picker to show existing sessions

@@ -5,7 +5,7 @@ import { CLIENT_URL, hostTokens } from '../services/tokens.js';
 
 const router = Router();
 
-// In-memory storage (replace with Redis/DB for production)
+// In-memory session storage (will need Redis for production persistence)
 export const sessions = new Map<string, Session>();
 
 // Generate a short, easy-to-type session code
@@ -37,9 +37,17 @@ function generateRandomSessionName(): string {
   return `${adj} ${noun}`;
 }
 
-// Create a new session
+// Create a new session (requires playlist info - sessions without playlists are not created)
 router.post('/', (req: Request, res: Response) => {
-  const { hostName, resumeCode } = req.body;
+  const { resumeCode, tidalPlaylistId, tidalPlaylistUrl, playlistName, hostToken: bodyHostToken } = req.body;
+  
+  // Playlist info is required
+  if (!tidalPlaylistId || !tidalPlaylistUrl) {
+    return res.status(400).json({ error: 'Playlist info required to create session' });
+  }
+  
+  // Get host token from header, cookie, or body
+  const hostToken = req.headers['x-host-token'] as string || req.cookies?.tidepool_host || bodyHostToken;
   
   // Allow resuming with a specific code (hidden feature for server restarts)
   let sessionId: string;
@@ -57,18 +65,22 @@ router.post('/', (req: Request, res: Response) => {
     sessionId = generateSessionCode();
   }
   
-  const sessionName = hostName?.trim() || generateRandomSessionName();
+  const sessionName = playlistName?.trim() || generateRandomSessionName();
   
   const session: Session = {
     id: sessionId,
     hostId: '',
+    hostToken: hostToken || undefined,
     name: sessionName,
     tracks: [],
     createdAt: new Date(),
     participants: new Map(),
+    tidalPlaylistId,
+    tidalPlaylistUrl,
   };
   
   sessions.set(sessionId, session);
+  console.log(`Session ${sessionId} created with playlist ${tidalPlaylistId} (${sessionName})`);
   
   res.json({
     sessionId,
@@ -110,8 +122,9 @@ router.get('/mine', (req: Request, res: Response) => {
   }> = [];
   
   // Find sessions matching ANY of this user's tokens
+  // Only include sessions that have a playlist linked (filter out incomplete sessions)
   sessions.forEach((session) => {
-    if (session.hostToken && userTokens.includes(session.hostToken)) {
+    if (session.hostToken && userTokens.includes(session.hostToken) && session.tidalPlaylistId) {
       mySessions.push({
         id: session.id,
         name: session.name,
@@ -153,6 +166,7 @@ router.get('/host/:username', (req: Request, res: Response) => {
   }
   
   // Find all sessions for ANY of this user's tokens
+  // Only include sessions that have a playlist linked (filter out incomplete sessions)
   const hostSessions: Array<{
     id: string;
     name: string;
@@ -160,7 +174,7 @@ router.get('/host/:username', (req: Request, res: Response) => {
   }> = [];
   
   sessions.forEach((session) => {
-    if (session.hostToken && userTokens.includes(session.hostToken)) {
+    if (session.hostToken && userTokens.includes(session.hostToken) && session.tidalPlaylistId) {
       hostSessions.push({
         id: session.id,
         name: session.name,
