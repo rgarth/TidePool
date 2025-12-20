@@ -102,7 +102,7 @@ export function PlaylistView({
     <div className="flex flex-col gap-sm">
       {tracks.map((track, index) => (
         <TrackItem
-          key={track.id}
+          key={`${track.id}-${index}`}
           track={track}
           index={index}
           isHost={isHost}

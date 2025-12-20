@@ -461,7 +461,7 @@ export function parseTrackData(data: any, orderedIds?: string[]): Track[] {
     }
     
     trackMap.set(track.id, {
-      id: track.id?.toString() || nanoid(),
+      id: nanoid(), // Unique ID for each track instance (same song can appear multiple times)
       tidalId: track.id?.toString(),
       title: attrs.title || 'Unknown',
       artist: artistNames,
@@ -522,10 +522,16 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
   
   console.log(`>>> Total tracks fetched: ${allTracks.length}`);
   
-  // Return in original order
+  // Return in original order, creating unique IDs for each position
+  // (same song can appear multiple times in a playlist)
   const trackMap = new Map(allTracks.map(t => [t.tidalId, t]));
   return trackIds
-    .map(id => trackMap.get(id))
+    .map(id => {
+      const track = trackMap.get(id);
+      if (!track) return undefined;
+      // Create a new track instance with unique ID for each playlist position
+      return { ...track, id: nanoid() };
+    })
     .filter((t): t is Track => t !== undefined);
 }
 
