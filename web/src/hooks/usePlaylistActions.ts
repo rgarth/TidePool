@@ -78,21 +78,25 @@ export function usePlaylistActions({
   }, [playlistId, sessionId, onClearSearch]);
 
   // Delete track from playlist
-  const deleteTrack = useCallback(async (trackId: string) => {
+  const deleteTrack = useCallback(async (trackId: string, tidalId: string) => {
     if (!playlistId) return false;
     
-    setDeletingTrackId(trackId);
+    setDeletingTrackId(trackId); // Use internal ID for UI state
     try {
       const response = await apiFetch(`/api/tidal/playlists/${playlistId}/tracks`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          trackIds: [trackId],
+          trackIds: [tidalId], // Use Tidal ID for API
           sessionId: sessionId?.toUpperCase(),
         }),
       });
       
-      if (!response.ok) throw new Error('Failed to delete track');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Delete track failed:', response.status, errorData);
+        throw new Error(errorData.error || 'Failed to delete track');
+      }
       return true;
     } catch (err) {
       console.error('Failed to delete track:', err);

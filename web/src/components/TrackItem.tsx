@@ -8,7 +8,7 @@ interface TrackItemProps {
   track: Track;
   index: number;
   isDeleting: boolean;
-  onDelete: (trackId: string) => void;
+  onDelete: (trackId: string, tidalId: string) => void;
 }
 
 export function TrackItem({ track, index, isDeleting, onDelete }: TrackItemProps) {
@@ -36,7 +36,7 @@ export function TrackItem({ track, index, isDeleting, onDelete }: TrackItemProps
       
       <button
         className="btn btn-danger btn-icon"
-        onClick={() => onDelete(track.id)}
+        onClick={() => onDelete(track.id, track.tidalId)}
         disabled={isDeleting}
         title="Remove from playlist"
       >

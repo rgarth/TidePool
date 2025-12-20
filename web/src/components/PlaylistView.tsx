@@ -13,7 +13,7 @@ interface PlaylistViewProps {
   isLoading: boolean;
   isHost: boolean;
   deletingTrackId: string | null;
-  onDeleteTrack: (trackId: string) => void;
+  onDeleteTrack: (trackId: string, tidalId: string) => void;
   isUnavailable?: boolean;
   onSelectNewPlaylist?: () => void;
   sessionExpired?: SessionExpiredInfo | null;
