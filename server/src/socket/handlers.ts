@@ -146,7 +146,6 @@ export function setupSocketHandlers(io: Server): void {
                   const currentSession = sessions.get(sessionIdToDelete);
                   if (currentSession && currentSession.participants.size === 0) {
                     sessions.delete(sessionIdToDelete);
-                    saveSessions(sessions);
                     console.log(`Session ${sessionIdToDelete} expired`);
                   }
                 }, 5 * 60 * 1000);

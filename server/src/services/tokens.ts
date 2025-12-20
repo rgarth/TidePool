@@ -37,62 +37,6 @@ export function saveTokens(tokens: Map<string, UserTokens>): void {
 // Host tokens storage (loaded from disk on startup)
 export const hostTokens = loadTokens();
 
-// Session persistence - serialize sessions to JSON-safe format
-interface SerializedSession {
-  id: string;
-  hostId: string;
-  hostToken?: string;
-  hostName?: string;
-  name: string;
-  tracks: any[];
-  createdAt: string;
-  participants: [string, any][];
-  tidalPlaylistId?: string;
-  tidalPlaylistUrl?: string;
-  isPublic?: boolean;
-}
-
-export function loadSessions(): Map<string, Session> {
-  try {
-    if (fs.existsSync(SESSION_FILE)) {
-      const data: Record<string, SerializedSession> = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
-      const sessions = new Map<string, Session>();
-      
-      for (const [id, serialized] of Object.entries(data)) {
-        sessions.set(id, {
-          ...serialized,
-          createdAt: new Date(serialized.createdAt),
-          participants: new Map(serialized.participants || []),
-        });
-      }
-      
-      console.log(`Loaded ${sessions.size} sessions from disk`);
-      return sessions;
-    }
-  } catch (e) {
-    console.error('Failed to load sessions:', e);
-  }
-  return new Map();
-}
-
-export function saveSessions(sessions: Map<string, Session>): void {
-  try {
-    const data: Record<string, SerializedSession> = {};
-    
-    for (const [id, session] of sessions.entries()) {
-      data[id] = {
-        ...session,
-        createdAt: session.createdAt.toISOString(),
-        participants: Array.from(session.participants.entries()),
-      };
-    }
-    
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Failed to save sessions:', e);
-  }
-}
-
 // Tidal configuration
 export const TIDAL_CLIENT_ID = process.env.TIDAL_CLIENT_ID;
 export const TIDAL_CLIENT_SECRET = process.env.TIDAL_CLIENT_SECRET;
