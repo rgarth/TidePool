@@ -33,8 +33,6 @@ export function SessionPage() {
     playlistDeleted,
     sessionExpired,
     joinSession,
-    setPlaylist,
-    startLoading,
     clearUnavailableFlag,
   } = useSocket();
 
@@ -63,12 +61,10 @@ export function SessionPage() {
   // Keep useAuth call for potential side effects
   useAuth();
   
-  // Playlist operations
+  // Playlist operations (refresh, add, delete tracks)
   const playlist = usePlaylistActions({
     sessionId,
     playlistId: sessionState?.tidalPlaylistId,
-    onPlaylistSet: setPlaylist,
-    onStartLoading: startLoading,
     onClearSearch: clearSearch,
   });
   

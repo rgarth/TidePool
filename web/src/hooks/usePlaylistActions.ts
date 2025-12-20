@@ -2,148 +2,28 @@ import { useState, useCallback } from 'react';
 import { apiFetch } from '../config';
 import type { SearchResult } from '../types';
 
-// Random playlist name generator
-const ADJECTIVES = [
-  'Midnight', 'Summer', 'Chill', 'Epic', 'Groovy', 'Smooth', 'Cosmic',
-  'Electric', 'Golden', 'Sunset', 'Highway', 'Road Trip', 'Late Night',
-  'Weekend', 'Sunday', 'Throwback', 'Fresh', 'Good Times', 'Cruising'
-];
-const NOUNS = [
-  'Bangers', 'Jams', 'Beats', 'Vibes', 'Tunes', 'Tracks', 'Hits',
-  'Grooves', 'Sounds', 'Mix', 'Playlist', 'Session', 'Party', 'Drive',
-  'Journey', 'Waves', 'Flow', 'Mood', 'Energy', 'Magic'
-];
-
-function generateRandomName(): string {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return `${adj} ${noun}`;
-}
-
-function extractPlaylistId(input: string): string | null {
-  const trimmed = input.trim();
-  
-  // Try to extract UUID from URL (tidal.com/playlist/UUID or listen.tidal.com/playlist/UUID)
-  const urlMatch = trimmed.match(/playlist\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-  if (urlMatch) return urlMatch[1];
-  
-  // Check if input itself is a valid UUID
-  const uuidMatch = trimmed.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
-  if (uuidMatch) return uuidMatch[1];
-  
-  return null;
-}
-
 interface UsePlaylistActionsProps {
   sessionId?: string;
   playlistId?: string;
-  onPlaylistSet: (id: string, url: string, name: string) => void;
-  onStartLoading: () => void;
   onClearSearch?: () => void;
 }
 
+/**
+ * Hook for playlist operations within an active session.
+ * Handles refreshing, adding tracks, and deleting tracks.
+ */
 export function usePlaylistActions({
   sessionId,
   playlistId,
-  onPlaylistSet,
-  onStartLoading,
   onClearSearch,
 }: UsePlaylistActionsProps) {
-  // Playlist picker state
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-  const [existingPlaylistId, setExistingPlaylistId] = useState('');
-  const [existingPlaylistError, setExistingPlaylistError] = useState('');
-  
   // Loading states
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Track operations
   const [addingTrackId, setAddingTrackId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
-
-  // Create new playlist
-  const createPlaylist = useCallback(async () => {
-    const name = newPlaylistName.trim() || generateRandomName();
-    
-    setIsCreatingPlaylist(true);
-    onStartLoading();
-    
-    try {
-      const response = await apiFetch('/api/tidal/playlists', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description: 'Created with TidePool' }),
-      });
-      
-      if (!response.ok) throw new Error('Failed to create playlist');
-      
-      const data = await response.json();
-      onPlaylistSet(data.id, data.listenUrl, name);
-      setNewPlaylistName('');
-      
-      // Trigger refresh to sync
-      setTimeout(() => {
-        apiFetch(`/api/tidal/playlists/${data.id}/refresh?sessionId=${sessionId}`);
-      }, 300);
-      
-      return true;
-    } catch (err) {
-      console.error('Failed to create playlist:', err);
-      return false;
-    } finally {
-      setIsCreatingPlaylist(false);
-    }
-  }, [newPlaylistName, sessionId, onPlaylistSet, onStartLoading]);
-
-  // Load existing playlist by ID or URL
-  const loadExistingPlaylist = useCallback(async (idOrUrl?: string) => {
-    const input = idOrUrl || existingPlaylistId;
-    const cleanId = extractPlaylistId(input);
-    
-    if (!cleanId) {
-      setExistingPlaylistError('Please enter a valid playlist ID or Tidal URL');
-      return false;
-    }
-    
-    setIsLoadingExisting(true);
-    setExistingPlaylistError('');
-    
-    try {
-      const response = await apiFetch(`/api/tidal/playlists/${cleanId}/tracks`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Playlist not found or no longer accessible.');
-        }
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Playlist not found');
-      }
-      
-      const data = await response.json();
-      const playlistName = data.playlistName;
-      
-      onStartLoading();
-      setExistingPlaylistId('');
-      
-      const listenUrl = `https://listen.tidal.com/playlist/${cleanId}`;
-      onPlaylistSet(cleanId, listenUrl, playlistName);
-      
-      // Trigger refresh to sync
-      setTimeout(() => {
-        apiFetch(`/api/tidal/playlists/${cleanId}/refresh?sessionId=${sessionId}`);
-      }, 500);
-      
-      return true;
-    } catch (err: any) {
-      setExistingPlaylistError(err.message || 'Failed to load playlist');
-      return false;
-    } finally {
-      setIsLoadingExisting(false);
-    }
-  }, [existingPlaylistId, sessionId, onPlaylistSet, onStartLoading]);
 
   // Refresh playlist from Tidal
   const refreshPlaylist = useCallback(async () => {
@@ -222,26 +102,10 @@ export function usePlaylistActions({
     }
   }, [playlistId, sessionId]);
 
-
-  // Clear existing playlist error when input changes
-  const handleExistingPlaylistIdChange = useCallback((id: string) => {
-    setExistingPlaylistId(id);
-    setExistingPlaylistError('');
-  }, []);
-
   return {
-    // Picker state
-    newPlaylistName,
-    setNewPlaylistName,
-    existingPlaylistId,
-    setExistingPlaylistId: handleExistingPlaylistIdChange,
-    existingPlaylistError,
-    
     // Loading states
-    isCreatingPlaylist,
-    isLoadingExisting,
     isRefreshing,
-    isLoading: isCreatingPlaylist || isLoadingExisting || isRefreshing,
+    isLoading: isRefreshing,
     
     // Track operation states
     addingTrackId,
@@ -249,12 +113,8 @@ export function usePlaylistActions({
     deletingTrackId,
     
     // Actions
-    createPlaylist,
-    loadExistingPlaylist,
     refreshPlaylist,
     addTrack,
     deleteTrack,
   };
 }
-
-

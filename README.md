@@ -132,14 +132,18 @@ Open http://localhost:5173 in your browser.
 
 ```
 TidePool/
-├── server/           # Express + Socket.io backend
+├── server/              # Express + Socket.io backend
 │   └── src/
-│       └── index.ts  # API routes, WebSocket handlers, Tidal API
-├── web/              # React frontend
+│       ├── routes/      # API routes (auth, sessions, tidal)
+│       ├── services/    # Business logic (tidal, tokens, valkey)
+│       ├── socket/      # WebSocket handlers
+│       └── utils/       # Helpers (sanitize)
+├── web/                 # React frontend
 │   └── src/
-│       ├── pages/    # HomePage, HostPage, JoinPage, SessionPage
-│       ├── hooks/    # useSocket
-│       └── styles/   # CSS
+│       ├── pages/       # HomePage, SessionPage, JoinPage, etc.
+│       ├── components/  # Reusable UI components
+│       ├── hooks/       # useSocket, useAuth, useSearch, etc.
+│       └── styles/      # CSS
 └── README.md
 ```
 
