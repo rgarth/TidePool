@@ -105,6 +105,7 @@ export function JoinPage() {
                   placeholder="Enter your name..."
                   value={name}
                   onChange={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
                   maxLength={50}
                   autoFocus={!urlSessionId}
                 />
