@@ -347,9 +347,9 @@ router.post('/playlists/:playlistId/tracks', async (req: Request, res: Response)
 // Remove tracks from a playlist
 router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
   const { playlistId } = req.params;
-  const { trackIds, sessionId } = req.body;
+  const { trackIds, itemIds, sessionId } = req.body;
   
-  console.log(`>>> DELETE /playlists/${playlistId}/tracks`, { trackIds, sessionId });
+  console.log(`>>> DELETE /playlists/${playlistId}/tracks`, { trackIds, itemIds, sessionId });
   
   // Get hostToken from request OR fall back to session's hostToken (for guests)
   let hostToken = getHostTokenFromRequest(req);
@@ -386,10 +386,11 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
     return res.status(400).json({ error: 'trackIds array is required' });
   }
   
-  console.log(`>>> Calling removeTracksFromPlaylist with trackIds:`, trackIds);
+  console.log(`>>> Calling removeTracksFromPlaylist with trackIds:`, trackIds, 'itemIds:', itemIds);
   
   try {
-    const result = await removeTracksFromPlaylist(auth.token, playlistId, trackIds);
+    // Pass itemIds if provided (fast path), otherwise will fetch all items (slow path)
+    const result = await removeTracksFromPlaylist(auth.token, playlistId, trackIds, itemIds);
     console.log(`>>> removeTracksFromPlaylist result:`, result);
     
     const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);

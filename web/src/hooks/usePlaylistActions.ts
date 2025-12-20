@@ -78,8 +78,8 @@ export function usePlaylistActions({
   }, [playlistId, sessionId, onClearSearch]);
 
   // Delete track from playlist
-  const deleteTrack = useCallback(async (trackId: string, tidalId: string) => {
-    console.log('>>> deleteTrack called:', { trackId, tidalId, playlistId, sessionId });
+  const deleteTrack = useCallback(async (trackId: string, tidalId: string, tidalItemId?: string) => {
+    console.log('>>> deleteTrack called:', { trackId, tidalId, tidalItemId, playlistId, sessionId });
     
     if (!playlistId) {
       console.error('>>> deleteTrack: No playlistId');
@@ -88,10 +88,16 @@ export function usePlaylistActions({
     
     setDeletingTrackId(trackId); // Use internal ID for UI state
     try {
-      const requestBody = {
+      const requestBody: any = {
         trackIds: [tidalId], // Use Tidal ID for API
         sessionId: sessionId?.toUpperCase(),
       };
+      
+      // Include itemId if available (enables fast delete path)
+      if (tidalItemId) {
+        requestBody.itemIds = [tidalItemId];
+      }
+      
       console.log('>>> deleteTrack request:', { url: `/api/tidal/playlists/${playlistId}/tracks`, body: requestBody });
       
       const response = await apiFetch(`/api/tidal/playlists/${playlistId}/tracks`, {

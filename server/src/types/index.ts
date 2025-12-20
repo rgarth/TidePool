@@ -9,6 +9,7 @@ export interface Track {
   albumArt: string;
   addedBy: string;
   tidalId: string;
+  tidalItemId?: string; // Playlist-specific ID for deletion (same song can appear multiple times)
 }
 
 export interface Session {
