@@ -379,7 +379,7 @@ export async function getPlaylistTrackIds(accessToken: string, playlistId: strin
     const json: any = await response.json();
     const ids = (json.data || []).map((item: any) => item.id);
     allIds.push(...ids);
-    console.log(`>>> Page ${pageNum}: got ${ids.length} IDs (total: ${allIds.length})`);
+    console.log(`>>> Page ${pageNum}: got ${ids.length} IDs (total: ${allIds.length}), sample: ${ids.slice(0, 3).join(', ')}`);
     
     // Check for next page - Tidal returns relative URLs, need to make absolute
     const nextLink = json.links?.next;
@@ -496,6 +496,7 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
     const url = `https://openapi.tidal.com/v2/tracks?countryCode=${countryCode}&filter[id]=${batchIds.join(',')}&include=albums.coverArt,artists`;
     
     try {
+      console.log(`>>> Fetching batch ${i}: first few IDs: ${batchIds.slice(0, 3).join(', ')}`);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -504,7 +505,8 @@ export async function getTrackDetails(accessToken: string, trackIds: string[], c
       });
 
       if (!response.ok) {
-        console.error(`>>> Failed to fetch track details batch ${i}-${i + BATCH_SIZE}: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`>>> Failed to fetch track details batch ${i}-${i + BATCH_SIZE}: ${response.status}`, errorText.substring(0, 500));
         continue; // Skip failed batch, continue with others
       }
 
