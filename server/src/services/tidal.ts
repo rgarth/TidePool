@@ -292,30 +292,45 @@ export async function addTracksToPlaylist(accessToken: string, playlistId: strin
 export async function removeTracksFromPlaylist(accessToken: string, playlistId: string, trackIds: string[]): Promise<any> {
   console.log(`>>> removeTracksFromPlaylist called:`, { playlistId, trackIds });
   
-  const itemsUrl = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
+  // First, get ALL playlist items (with pagination) to find the itemId for each track
+  const allItems: any[] = [];
+  let nextUrl: string | null = `${TIDAL_API_BASE}/playlists/${playlistId}/relationships/items?page[limit]=100`;
   
-  // First, get the playlist items to find the itemId for each track
-  const itemsResponse = await fetch(itemsUrl, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/vnd.api+json',
-    },
-  });
-  
-  if (!itemsResponse.ok) {
-    const error = await itemsResponse.text();
-    console.error(`>>> Get items error (${itemsResponse.status}):`, error.substring(0, 500));
-    throw new Error(`Failed to get playlist items: ${itemsResponse.status}`);
+  while (nextUrl) {
+    const itemsResponse: Response = await fetch(nextUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.api+json',
+      },
+    });
+    
+    if (!itemsResponse.ok) {
+      const error = await itemsResponse.text();
+      console.error(`>>> Get items error (${itemsResponse.status}):`, error.substring(0, 500));
+      throw new Error(`Failed to get playlist items: ${itemsResponse.status}`);
+    }
+    
+    const itemsData: any = await itemsResponse.json();
+    const items = itemsData.data || [];
+    allItems.push(...items);
+    
+    // Check for next page
+    const nextLink: string | undefined = itemsData.links?.next;
+    if (nextLink) {
+      nextUrl = nextLink.startsWith('http') ? nextLink : `${TIDAL_API_BASE}${nextLink}`;
+    } else {
+      nextUrl = null;
+    }
+    
+    // Safety limit
+    if (allItems.length >= 1000) break;
   }
   
-  const itemsData = await itemsResponse.json();
-  const items = itemsData.data || [];
-  
-  console.log(`>>> Playlist has ${items.length} items. Sample IDs:`, items.slice(0, 5).map((i: any) => i.id));
+  console.log(`>>> Playlist has ${allItems.length} items. Sample IDs:`, allItems.slice(0, 5).map((i: any) => i.id));
   console.log(`>>> Looking for trackIds:`, trackIds);
   
   // Find the items that match our trackIds
-  const itemsToDelete = items
+  const itemsToDelete = allItems
     .filter((item: any) => trackIds.includes(item.id))
     .map((item: any) => ({
       type: 'tracks',
@@ -327,13 +342,14 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
   
   if (itemsToDelete.length === 0) {
     console.log(`>>> No matching tracks found to delete. trackIds types:`, trackIds.map(id => typeof id));
-    console.log(`>>> Item IDs types:`, items.slice(0, 3).map((i: any) => ({ id: i.id, type: typeof i.id })));
+    console.log(`>>> All item IDs:`, allItems.map((i: any) => i.id));
     return { success: true, deleted: 0 };
   }
   
   console.log(`>>> Removing ${itemsToDelete.length} tracks from playlist ${playlistId}`);
   
-  const response = await fetch(itemsUrl, {
+  const deleteUrl = `${TIDAL_API_BASE}/playlists/${playlistId}/relationships/items`;
+  const response = await fetch(deleteUrl, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
