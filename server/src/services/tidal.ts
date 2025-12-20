@@ -349,9 +349,11 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
 }
 
 // Get playlist track IDs (with pagination)
+const TIDAL_API_BASE = 'https://openapi.tidal.com/v2';
+
 export async function getPlaylistTrackIds(accessToken: string, playlistId: string): Promise<string[]> {
   const allIds: string[] = [];
-  let nextUrl: string | null = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items?page[limit]=100`;
+  let nextUrl: string | null = `${TIDAL_API_BASE}/playlists/${playlistId}/relationships/items?page[limit]=100`;
   let pageNum = 0;
   
   while (nextUrl) {
@@ -379,8 +381,13 @@ export async function getPlaylistTrackIds(accessToken: string, playlistId: strin
     allIds.push(...ids);
     console.log(`>>> Page ${pageNum}: got ${ids.length} IDs (total: ${allIds.length})`);
     
-    // Check for next page
-    nextUrl = json.links?.next || null;
+    // Check for next page - Tidal returns relative URLs, need to make absolute
+    const nextLink = json.links?.next;
+    if (nextLink) {
+      nextUrl = nextLink.startsWith('http') ? nextLink : `${TIDAL_API_BASE}${nextLink}`;
+    } else {
+      nextUrl = null;
+    }
     
     // Safety: max 1000 tracks
     if (allIds.length >= 1000) {
