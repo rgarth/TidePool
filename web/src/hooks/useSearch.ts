@@ -21,6 +21,8 @@ export function useSearch(sessionId: string | undefined): UseSearchReturn {
 
   // Debounced search
   useEffect(() => {
+    console.log('>>> useSearch effect triggered:', { searchQuery, sessionId, queryLength: searchQuery.trim().length });
+    
     // Clear any pending search
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -39,6 +41,7 @@ export function useSearch(sessionId: string | undefined): UseSearchReturn {
       return;
     }
 
+    console.log('>>> useSearch: starting search, setting isSearching=true');
     // Start searching after debounce
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
@@ -50,6 +53,8 @@ export function useSearch(sessionId: string | undefined): UseSearchReturn {
       const timeoutId = setTimeout(() => {
         abortController.abort();
       }, SEARCH_TIMEOUT_MS);
+      
+      console.log('>>> Search request:', { query: searchQuery, sessionId });
       
       try {
         const response = await apiFetch(
@@ -65,8 +70,10 @@ export function useSearch(sessionId: string | undefined): UseSearchReturn {
         }
         
         const data = await response.json();
+        console.log('>>> Search response:', { status: response.status, ok: response.ok, trackCount: data.tracks?.length, error: data.error });
+        
         if (!response.ok) {
-          console.error('Search failed:', data.error);
+          console.error('>>> Search failed:', response.status, data.error);
           setSearchResults([]);
           return;
         }
