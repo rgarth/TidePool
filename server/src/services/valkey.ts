@@ -207,3 +207,15 @@ export async function touchSession(sessionId: string): Promise<void> {
   const key = PREFIXES.SESSION + sessionId;
   await client.expire(key, TTL.SESSION);
 }
+
+/**
+ * Delete all sessions (for cleanup/migration)
+ */
+export async function deleteAllSessions(): Promise<number> {
+  const client = getRedis();
+  const keys = await client.keys(PREFIXES.SESSION + '*');
+  if (keys.length === 0) return 0;
+  
+  await client.del(...keys);
+  return keys.length;
+}

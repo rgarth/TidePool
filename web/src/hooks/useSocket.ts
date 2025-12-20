@@ -19,7 +19,6 @@ interface UseSocketReturn {
   /** Set when OAuth session has expired */
   sessionExpired: SessionExpiredInfo | null;
   joinSession: (sessionId: string, displayName: string, asHost: boolean) => void;
-  addToPlaylist: (track: Omit<Track, 'id' | 'addedBy'>) => void;
   setPlaylist: (tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => void;
   /** Call before loading a playlist to clear tracks and show loading state */
   startLoading: () => void;
@@ -149,12 +148,6 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
-  const addToPlaylist = useCallback((track: Omit<Track, 'id' | 'addedBy'>) => {
-    if (socketRef.current) {
-      socketRef.current.emit('add_to_playlist', { track });
-    }
-  }, []);
-
   const setPlaylist = useCallback((tidalPlaylistId: string, tidalPlaylistUrl: string, playlistName?: string) => {
     if (socketRef.current) {
       socketRef.current.emit('set_playlist', { tidalPlaylistId, tidalPlaylistUrl, playlistName });
@@ -186,7 +179,6 @@ export function useSocket(): UseSocketReturn {
     playlistDeleted,
     sessionExpired,
     joinSession,
-    addToPlaylist,
     setPlaylist,
     startLoading,
     stopLoading,

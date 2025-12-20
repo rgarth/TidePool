@@ -1,7 +1,5 @@
 // WebSocket event handlers
 import { Server, Socket } from 'socket.io';
-import { nanoid } from 'nanoid';
-import { Track } from '../types/index.js';
 import { pendingAuth } from '../routes/auth.js';
 import { getHostToken } from '../services/tokens.js';
 import * as valkey from '../services/valkey.js';
@@ -92,39 +90,6 @@ export function setupSocketHandlers(io: Server): void {
       } catch (err) {
         console.error('Error joining session:', err);
         socket.emit('error', { message: 'Failed to join session' });
-      }
-    });
-
-    // Add track to playlist
-    socket.on('add_to_playlist', async ({ track }) => {
-      if (!currentSessionId) return;
-      
-      try {
-        const session = await valkey.getSession(currentSessionId);
-        if (!session) return;
-        
-        const participants = getParticipants(currentSessionId);
-        const displayName = participants.get(socket.id) || 'Unknown';
-        
-        const newTrack: Track = {
-          ...track,
-          id: nanoid(),
-          addedBy: displayName,
-        };
-
-        session.tracks.push(newTrack);
-        await valkey.setSession(session.id, session);
-
-        io.to(session.id).emit('playlist_updated', {
-          tracks: session.tracks,
-          action: 'added',
-          track: newTrack,
-          addedBy: displayName,
-        });
-        
-        console.log(`${displayName} added "${track.title}" to playlist`);
-      } catch (err) {
-        console.error('Error adding track:', err);
       }
     });
 
