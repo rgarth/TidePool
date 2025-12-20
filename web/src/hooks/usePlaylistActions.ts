@@ -79,27 +79,37 @@ export function usePlaylistActions({
 
   // Delete track from playlist
   const deleteTrack = useCallback(async (trackId: string, tidalId: string) => {
-    if (!playlistId) return false;
+    console.log('>>> deleteTrack called:', { trackId, tidalId, playlistId, sessionId });
+    
+    if (!playlistId) {
+      console.error('>>> deleteTrack: No playlistId');
+      return false;
+    }
     
     setDeletingTrackId(trackId); // Use internal ID for UI state
     try {
+      const requestBody = {
+        trackIds: [tidalId], // Use Tidal ID for API
+        sessionId: sessionId?.toUpperCase(),
+      };
+      console.log('>>> deleteTrack request:', { url: `/api/tidal/playlists/${playlistId}/tracks`, body: requestBody });
+      
       const response = await apiFetch(`/api/tidal/playlists/${playlistId}/tracks`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trackIds: [tidalId], // Use Tidal ID for API
-          sessionId: sessionId?.toUpperCase(),
-        }),
+        body: JSON.stringify(requestBody),
       });
       
+      const responseData = await response.json().catch(() => ({}));
+      console.log('>>> deleteTrack response:', { status: response.status, ok: response.ok, data: responseData });
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Delete track failed:', response.status, errorData);
-        throw new Error(errorData.error || 'Failed to delete track');
+        console.error('>>> deleteTrack failed:', response.status, responseData);
+        throw new Error(responseData.error || 'Failed to delete track');
       }
       return true;
     } catch (err) {
-      console.error('Failed to delete track:', err);
+      console.error('>>> deleteTrack error:', err);
       return false;
     } finally {
       setDeletingTrackId(null);

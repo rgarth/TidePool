@@ -349,12 +349,19 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   const { playlistId } = req.params;
   const { trackIds, sessionId } = req.body;
   
+  console.log(`>>> DELETE /playlists/${playlistId}/tracks`, { trackIds, sessionId });
+  
   // Get hostToken from request OR fall back to session's hostToken (for guests)
   let hostToken = getHostTokenFromRequest(req);
+  console.log(`>>> hostToken from request: ${hostToken ? 'yes' : 'no'}`);
+  
   if (!hostToken && sessionId) {
     const session = await valkey.getSession(sessionId.toUpperCase());
     if (session?.hostToken) {
       hostToken = session.hostToken;
+      console.log(`>>> hostToken from session: yes`);
+    } else {
+      console.log(`>>> hostToken from session: no (session: ${session ? 'found' : 'not found'})`);
     }
   }
   
@@ -370,16 +377,20 @@ router.delete('/playlists/:playlistId/tracks', async (req: Request, res: Respons
   }
   
   if (!auth) {
+    console.log(`>>> DELETE failed: Not authenticated`);
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   if (!trackIds || !Array.isArray(trackIds) || trackIds.length === 0) {
+    console.log(`>>> DELETE failed: No trackIds`);
     return res.status(400).json({ error: 'trackIds array is required' });
   }
   
+  console.log(`>>> Calling removeTracksFromPlaylist with trackIds:`, trackIds);
+  
   try {
-    await removeTracksFromPlaylist(auth.token, playlistId, trackIds);
-    console.log(`Removed ${trackIds.length} tracks from playlist ${playlistId}`);
+    const result = await removeTracksFromPlaylist(auth.token, playlistId, trackIds);
+    console.log(`>>> removeTracksFromPlaylist result:`, result);
     
     const tracks = await getPlaylistWithFullTracks(auth.token, playlistId, auth.countryCode);
     

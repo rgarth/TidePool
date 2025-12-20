@@ -290,6 +290,8 @@ export async function addTracksToPlaylist(accessToken: string, playlistId: strin
 
 // Remove tracks from a playlist
 export async function removeTracksFromPlaylist(accessToken: string, playlistId: string, trackIds: string[]): Promise<any> {
+  console.log(`>>> removeTracksFromPlaylist called:`, { playlistId, trackIds });
+  
   const itemsUrl = `https://openapi.tidal.com/v2/playlists/${playlistId}/relationships/items`;
   
   // First, get the playlist items to find the itemId for each track
@@ -309,6 +311,9 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
   const itemsData = await itemsResponse.json();
   const items = itemsData.data || [];
   
+  console.log(`>>> Playlist has ${items.length} items. Sample IDs:`, items.slice(0, 5).map((i: any) => i.id));
+  console.log(`>>> Looking for trackIds:`, trackIds);
+  
   // Find the items that match our trackIds
   const itemsToDelete = items
     .filter((item: any) => trackIds.includes(item.id))
@@ -321,8 +326,9 @@ export async function removeTracksFromPlaylist(accessToken: string, playlistId: 
     }));
   
   if (itemsToDelete.length === 0) {
-    console.log(`>>> No matching tracks found to delete`);
-    return { success: true };
+    console.log(`>>> No matching tracks found to delete. trackIds types:`, trackIds.map(id => typeof id));
+    console.log(`>>> Item IDs types:`, items.slice(0, 3).map((i: any) => ({ id: i.id, type: typeof i.id })));
+    return { success: true, deleted: 0 };
   }
   
   console.log(`>>> Removing ${itemsToDelete.length} tracks from playlist ${playlistId}`);
